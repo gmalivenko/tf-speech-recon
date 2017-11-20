@@ -1,5 +1,5 @@
 import random
-from os import walk
+import os
 import numpy as np
 import array
 import struct
@@ -11,34 +11,59 @@ import matplotlib.pyplot as plt
 
 from wav_crop import crop_wav
 
+import h5py
+
 # from pydub import AudioSegment,silence
 
+#empiricaly calcullated from test set
+MINIMUM_FEATURE_SIZE = 100
 
 
 class FeatureExtractor:
-    def __init__(self, path, sep=','):
+    def __init__(self):
         self.sample_names = []
-        self.labels = []
-        self.path = path
+        self.dir_names = []
 
-        self.vad = webrtcvad.Vad()
+    def extract_features(self, sound_path, feature_path):
+        if not os.path.exists(feature_path):
+            os.makedirs(feature_path)
 
+        h5f = h5py.File(feature_path + 'train_features.h5', 'w')
 
-        for (dirpath, dirnames, filenames) in walk(path):
-            self.sample_names.extend(filenames)
+        for (dir_path, dir_names, filen_ames) in os.walk(sound_path):
+            self.dir_names.extend(dir_names)
             break
 
-        # with open(filename, 'r') as f:
-        #     next(f) #skip first line
-        #     i = 1
-        #     for line in f:
-        #         index_tuple = line.split(sep=sep)
-        #         if i == 1:
-        #             print(index_tuple)
-        #             i +=1
-        #
-        #         self.sample_names.append(index_tuple[0])
-        #         self.labels.append(index_tuple[1])
+        for dir_name in self.dir_names:
+            print('Processing ' + sound_path + dir_name)
+            wav_files = []
+
+            for (dir_path, dir_names, file_names) in os.walk(sound_path + dir_name):
+                wav_files.extend(file_names)
+                break
+
+            for id, file_name in enumerate(wav_files):
+                sample_full_name = sound_path + dir_name + '/' + file_name
+                (rate, sig) = wav.read(sample_full_name)
+
+                #cut_signal
+                signal_cut = []
+                raw_cut = crop_wav(sig, rate)
+                for i, s in enumerate(raw_cut):
+                    signal_cut.extend(array.array("h", s))
+
+                if len(signal_cut) == 0:
+                    signal_cut = sig
+
+                signal_cut = np.array(signal_cut)
+                mfcc_feat = mfcc(signal_cut, rate)
+                mfcc_padded = self.padding(mfcc_feat)
+
+                h5f.create_dataset(dir_name + '/' + str(id), data=mfcc_padded)
+                # np.savetxt(feature_path + dir_name + '/' + file_name + '.feature', mfcc_feat, delimiter=',')
+                # print(str((100 * id)/len(self.sample_names)) + '%')
+
+        h5f.close()
 
     def sample(self, size):
         sample_id = random.sample(range(len(self.sample_names)), min(size, len(self.sample_names)))
@@ -65,12 +90,18 @@ class FeatureExtractor:
         return mfcc_feat
 
 
-    def padding(self):
-        return 0
+    def padding(self, mfcc_feat):
+        for i in range(MINIMUM_FEATURE_SIZE - np.shape(mfcc_feat)[0]):
+            mfcc_feat = np.concatenate((mfcc_feat, np.zeros((1, np.shape(mfcc_feat)[1]))), axis=0)
+        return mfcc_feat
 
-    def visualize(self):
+    def visualize(self, path):
+        for (dirpath, dirnames, filenames) in os.walk(path):
+            self.sample_names.extend(filenames)
+            break
+
         id = random.sample(range(len(self.sample_names)), 1)[0]
-        sample_file_name = self.path + self.sample_names[id]
+        sample_file_name = path + self.sample_names[id]
         # sample_file_name = self.path + "0f7dc557_nohash_2.wav"
         (rate, sig) = wav.read(sample_file_name)
 
@@ -99,6 +130,23 @@ class FeatureExtractor:
         ax2.set_ylabel('Amplitude')
         ax2.plot(signal_cut)
 
+        signal_cut = np.array(signal_cut)
+
+        mfcc_feat = mfcc(signal_cut, rate)
+        mfcc_padded = self.padding(mfcc_feat)
+
+        print(mfcc_feat)
+        print(mfcc_padded)
+
+        print(np.shape(mfcc_feat))
+        print(np.shape(mfcc_padded))
+
+
         plt.show()
 
         return 0
+
+if __name__ == '__main__':
+    fe = FeatureExtractor()
+    fe.extract_features('./data/train/audio/', './data/train/features/')
+    # fe.visualize('./data/train/audio/one/')
