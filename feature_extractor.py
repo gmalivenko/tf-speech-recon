@@ -85,7 +85,7 @@ class FeatureExtractor:
 
             signal_cut = np.array(signal_cut)
 
-            mfcc_feat = mfcc(signal_cut, rate)
+            mfcc_feat = mfcc(signal_cut, rate, numcep=13)
 
         return mfcc_feat
 
@@ -148,5 +148,5 @@ class FeatureExtractor:
 
 if __name__ == '__main__':
     fe = FeatureExtractor()
-    fe.extract_features('./data/train/audio/', './data/train/features/')
-    # fe.visualize('./data/train/audio/one/')
+    # fe.extract_features('./data/train/audio/', './data/train/features/')
+    fe.visualize('./data/train/audio/one/')
