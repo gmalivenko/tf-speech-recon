@@ -1,15 +1,16 @@
-
 import tensorflow as tf
+import numpy as np
 from functools import reduce
 from ops import *
 
 
 
 class ANN:
-    def __init__(self, sess):
+    def __init__(self, sess, batch_size):
 
         # self.config = config
         self.sess = sess
+        self.batch_size = batch_size
 
     def build_lace(self, output_size, input_size = [100, 13, 1], channel_start = 32):
         self.w = {}
@@ -98,25 +99,35 @@ class ANN:
             shape = one_hot.get_shape().as_list()
             print('one hot ', shape)
 
-            self.cross_entropy = -tf.reduce_mean(tf.reduce_sum(tf.multiply(one_hot, tf.log(self.classification))), name = 'cross_enropy')
+            self.cross_entropy = -tf.reduce_mean(tf.reduce_sum(tf.multiply(one_hot, tf.log(tf.clip_by_value(self.classification,1e-10,1.0)))), name = 'cross_enropy')
 
             shape = self.cross_entropy.get_shape().as_list()
             print('cross entropy ', shape)
 
             # self.learning_rate = tf.placeholder('float64', 1, name='learning_rate')
 
-            self.optimizer = tf.train.AdamOptimizer(0.01).minimize(self.cross_entropy)
+            self.optimizer = tf.train.AdamOptimizer().minimize(self.cross_entropy)
 
             tf.initialize_all_variables().run()
 
-    def train(self, data, labels, lrate):
-        for i in range(1000):
-            _, ent = self.sess.run([self.optimizer, self.cross_entropy], {
-                self.input: data,
-                self.ground_truth: labels,
-                self.phase: True,
-                # self.learning_rate: lrate
-            })
-            print(ent)
+    def train(self, data, labels):
+
+        data_shape = np.shape(data)
+
+        for j in range(100):
+            mean_ent = 0
+            i = 0
+            while ((i + 1) * self.batch_size) <  data_shape[0]:
+                d = data[i * self.batch_size : (i + 1) * self.batch_size]
+                l = labels[i * self.batch_size : (i + 1) * self.batch_size]
+                _, ent = self.sess.run([self.optimizer, self.cross_entropy], {
+                    self.input: np.expand_dims(d, axis=-1),
+                    self.ground_truth: l,
+                    self.phase: True,
+                })
+                i += 1
+                mean_ent += ent
+
+            print('Step ', j, ' ent ', float(mean_ent)/float(i))
 
 
