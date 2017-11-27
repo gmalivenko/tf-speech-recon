@@ -1,4 +1,6 @@
+import sys
 import tensorflow as tf
+import datetime
 import numpy as np
 from functools import reduce
 from ops import *
@@ -6,13 +8,17 @@ from ops import *
 
 
 class ANN:
-    def __init__(self, sess, batch_size):
+    def __init__(self, sess, batch_size, save_path = None):
 
         # self.config = config
         self.sess = sess
         self.batch_size = batch_size
 
+        self.save_path = save_path
+        self.model_name = 'unknown'
+
     def build_lace(self, output_size, input_size = [100, 13, 1], channel_start = 32):
+        self.model_name = 'lace'
         self.w = {}
         self.layer = {}
 
@@ -82,7 +88,7 @@ class ANN:
 
             self.layer['output'], self.w['output'] = weighted_sum(last_layer)
             shape = self.layer['output'].get_shape().as_list()
-            print('Shape', shape)
+            # print('Shape', shape)
             self.layer['output_flat'] = tf.reshape(self.layer['output'], [-1, reduce(lambda x, y: x * y, shape[1:])])
 
             self.layer['size_mapping'], self.w['size_mapping_w'], self.w['size_mapping_b'] = linear(self.layer['output_flat'],
@@ -92,25 +98,36 @@ class ANN:
             self.classification = tf.nn.softmax(self.layer['size_mapping'])
 
             shape = self.classification.get_shape().as_list()
-            print('classification ', shape)
+            # print('classification ', shape)
 
             self.ground_truth = tf.placeholder('int64', [None], name = 'true_label')
             one_hot = tf.one_hot(self.ground_truth, output_size, 1.0, 0.0, name='gt_one_hot')
             shape = one_hot.get_shape().as_list()
-            print('one hot ', shape)
+            # print('one hot ', shape)
 
             self.cross_entropy = -tf.reduce_mean(tf.reduce_sum(tf.multiply(one_hot, tf.log(tf.clip_by_value(self.classification,1e-10,1.0)))), name = 'cross_enropy')
 
             shape = self.cross_entropy.get_shape().as_list()
-            print('cross entropy ', shape)
+            # print('cross entropy ', shape)
 
             # self.learning_rate = tf.placeholder('float64', 1, name='learning_rate')
 
             self.optimizer = tf.train.AdamOptimizer().minimize(self.cross_entropy)
 
-            tf.initialize_all_variables().run()
+            init_op = tf.global_variables_initializer()
+            self.sess.run(init_op)
+
+            # self.save_model(self.save_path + self.model_name, write_graph=True)
+
+
+
 
     def train(self, data, labels):
+
+        save_graph = False
+        if self.save_path is None:
+            self.save_path = "./graph/" + datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S") + "/"
+            save_graph = True
 
         data_shape = np.shape(data)
 
@@ -128,6 +145,27 @@ class ANN:
                 i += 1
                 mean_ent += ent
 
+            if j % 10 == 0:
+                self.save_model(self.save_path + self.model_name, step = j, write_graph = save_graph)
+                save_graph = False
+
             print('Step ', j, ' ent ', float(mean_ent)/float(i))
 
+    def restore_model(self, loadpath):
+        # try:
+        restore = tf.train.Saver()
+        # restore.restore(self.sess, tf.train.latest_checkpoint(loadpath))
+        restore.restore(self.sess, loadpath + 'lace-0')
+        print('Model restored')
+        # except tf.errors as e:
+        #     print('Unable to load the model')
+        #     print(e)
 
+    def save_model(self, filename, step = 0, write_graph = False):
+        try:
+            saver = tf.train.Saver()
+            saver.save(self.sess, filename, global_step = step, write_meta_graph = write_graph)
+            print('Model saved')
+        except:
+            print('Unable to save the model')
+            print(sys.exc_info()[0])

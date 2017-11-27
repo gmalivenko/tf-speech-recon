@@ -1,5 +1,6 @@
-from feature_extractor import *
-from ann import *
+import atexit
+import datetime
+import os
 
 import random
 import numpy as np
@@ -7,9 +8,42 @@ import tensorflow as tf
 
 import h5py
 
-DATA_FILE = "./data/train/features/train_features.h5"
+from feature_extractor import *
+from ann import *
 
+
+DATA_FILE = "./data/train/features/train_features.h5"
 LABELS = {'yes', 'no', 'up', 'down', 'left', 'right', 'on', 'off', 'stop', 'go'}
+
+
+def termination_funk():
+    print("Terminating..")
+    save_path = network.save_model(sess, path + 'model-final.cptk',)
+    print("Model saved in file: %s" % save_path)
+
+atexit.register(termination_funk)
+
+global path
+path = "./graph/" + datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S") + "/"
+
+if not os.path.exists(path):
+    os.makedirs(path)
+
+
+def count_vars():
+    total_parameters = 0
+    for variable in tf.trainable_variables():
+        # shape is an array of tf.Dimension
+        shape = variable.get_shape()
+        print(shape)
+        print(len(shape))
+        variable_parameters = 1
+        for dim in shape:
+            print(dim)
+            variable_parameters *= dim.value
+        print(variable_parameters)
+        total_parameters += variable_parameters
+    print(total_parameters)
 
 
 class Data:
@@ -62,12 +96,19 @@ data_shape = np.shape(d)
 
 batch_size = 100
 
-with tf.Session() as sess:
-    init = tf.global_variables_initializer()
+LOAD_PATH = './graph/2017-11-27-22:42:22/'
 
-    network = ANN(sess, batch_size)
-    network.build_lace(len(LABELS), input_size=[data_shape[1], data_shape[2], 1])
+with tf.Session() as sess:
+    # init = tf.global_variables_initializer()
+
+    global network
+    network = ANN(sess, batch_size, save_path = path)
+    network.build_lace(len(LABELS), input_size = [data_shape[1], data_shape[2], 1], channel_start = 32)
     # sess.run(init)
+    network.restore_model(LOAD_PATH)
+
+
+
 
     network.train(d, l)
 
