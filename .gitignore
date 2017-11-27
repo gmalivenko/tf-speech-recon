@@ -1,6 +1,10 @@
 # Dataset
 data/
 
+#Graph
+
+graph/
+
 #idea projectfile
 .idea
 
