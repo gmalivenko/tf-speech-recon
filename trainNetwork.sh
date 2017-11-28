@@ -5,7 +5,7 @@ concurrent trainNetwork:
 	# do some preparation for the training that does not require gpu
     
 concurrent trainNetwork
-parallel step002_trainNetwork(qsub="-hard -l h_vmem=15G -l h_rt=80:00:00 -l gpu=1 -l qname='*1080TI*'"):
+parallel start128_trainNetwork(qsub="-hard -l h_vmem=15G -l h_rt=80:00:00 -l gpu=1 -l qname='*1080TI*'"):
     
     source /etc/lsb-release
     echo "Ubuntu $DISTRIB_RELEASE $DISTRIB_CODENAME"

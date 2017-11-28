@@ -130,7 +130,7 @@ class ANN:
                     self.ground_truth: labels,
                     self.phase: False,})
 
-        return accuracy, cl, pred
+        return accuracy, pred
 
 
     def train(self, train_data, train_labels, valid_data, valid_labels):
@@ -163,16 +163,19 @@ class ANN:
             accuracy = self.test(valid_data, valid_labels)
 
             print('Step ', j, ' ent ', float(mean_ent)/float(i), ' acc ', accuracy)
+            sys.stdout.write('Step ' + str(j) + ' ent ' + str(float(mean_ent)/float(i)) + ' acc ' + str(accuracy))
+            sys.stdout.flush()
 
-    def restore_model(self, loadpath):
+    def restore_model(self, loadpath):        
         try:
+            print(loadpath)
+            print(tf.train.latest_checkpoint(loadpath))
             restore = tf.train.Saver()
             restore.restore(self.sess, tf.train.latest_checkpoint(loadpath))
             # restore.restore(self.sess, loadpath + 'lace-0')
             print('Model restored')
-        except tf.errors as e:
-             print('Unable to load the model')
-             print(e)
+        except:
+            print('Unable to load the model')
 
     def save_model(self, filename, step = 0, write_graph = False):
         try:

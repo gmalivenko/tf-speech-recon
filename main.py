@@ -12,17 +12,17 @@ from feature_extractor import *
 from ann import *
 
 ## for cluster
-#DATA_FOLDER = "/work/asr2/bozheniuk/train/"
-DATA_FOLDER = "./data/train/"
+DATA_FOLDER = "/work/asr2/bozheniuk/train/"
+#DATA_FOLDER = "./data/train/"
 
 ## for cluster
-#GRAPH_FOLDER = "/work/asr2/bozheniuk/graph/"
-GRAPH_FOLDER = "./graph/"
+GRAPH_FOLDER = "/work/asr2/bozheniuk/graph/"
+#GRAPH_FOLDER = "./graph/"
 
-LOAD_PATH = GRAPH_FOLDER + '2017-11-27-22:42:22/'
+LOAD_PATH = GRAPH_FOLDER + 'graph1/'
 
 FEATURE_FILE = "features/train_features.h5"
-LABELS = {'yes', 'no', 'up', 'down', 'left', 'right', 'on', 'off', 'stop', 'go'}
+LABELS = ['yes', 'no', 'up', 'down', 'left', 'right', 'on', 'off', 'stop', 'go']
 
 
 def termination_funk():
@@ -64,25 +64,40 @@ class Data:
         h5f = h5py.File(file_name, 'r')
 
         for lbl_id, lbl in enumerate(LABELS):
+            print(lbl)
+            co = 0
             for sample_id in h5f.get(lbl):
                 self.data.append((np.array(h5f.get(lbl).get(sample_id)), lbl_id))
                 self.data_size += 1
+                co += 1
+
+            print(co)
 
         self.data = np.array(self.data)
         h5f.close()
 
-    def shuffle(self):
-        random.shuffle(self.data)
-        random.shuffle(self.data)
-        random.shuffle(self.data)
-        random.shuffle(self.data)
+    def get_by_label(self, filename, lbl):
+        h5f = h5py.File(filename, 'r')
+        samples = []
+        labels = []
 
+        for sample_id in h5f.get(lbl):
+            samples.append(np.array(h5f.get(lbl).get(sample_id)))
+            labels.append(LABELS.index(lbl))
+
+        h5f.close()
+        
+        return samples, labels
+
+    def shuffle(self):
+        self.data = np.random.permutation(self.data)
+        
     def get_train_samples(self):
-        res = [x[0] for x in self.data[: int(0.8 * self.data_size)]]
+        res = [x[0] for x in self.data]
         return res
 
     def get_train_labels(self):
-        res = [x[1] for x in self.data[: int(0.8 * self.data_size)]]
+        res = [x[1] for x in self.data]
         return res
 
     def get_validation_samples(self):
@@ -120,7 +135,6 @@ print('data loaded')
 
 data_shape = np.shape(d_train)
 
-
 # data = h5f.get('one').get('1')
 # data = np.array(data)
 
@@ -156,6 +170,21 @@ def test_net():
         network.build_lace(len(LABELS), input_size=[data_shape[1], data_shape[2], 1], channel_start=128)
         # sess.run(init)
         network.restore_model(LOAD_PATH)
+    
+        shape = np.shape(go_data)
+
+        batch = 100
+        i = 0
+
+        while ((i+1) * batch) < shape[0]:
+            d = go_data[i * batch : (i + 1) * batch]
+            l = go_label[i * batch : (i + 1) * batch] 
+            ac, pred = network.test(d, l)
+            print('accuracy: ', ac)
+            i += 1
+
+        #    print('pred: ', pred)
+        #    print('true: ', l)
         # print('cl: ', cl)
         # print('pred: ', pred)
         # print('true: ', l[0:10])
