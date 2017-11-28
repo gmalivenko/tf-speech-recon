@@ -167,8 +167,8 @@ class ANN:
     def restore_model(self, loadpath):
         try:
             restore = tf.train.Saver()
-            # restore.restore(self.sess, tf.train.latest_checkpoint(loadpath))
-            restore.restore(self.sess, loadpath + 'lace-0')
+            restore.restore(self.sess, tf.train.latest_checkpoint(loadpath))
+            # restore.restore(self.sess, loadpath + 'lace-0')
             print('Model restored')
         except tf.errors as e:
              print('Unable to load the model')

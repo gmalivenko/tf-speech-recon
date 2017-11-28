@@ -28,7 +28,8 @@ class FeatureExtractor:
         if not os.path.exists(feature_path):
             os.makedirs(feature_path)
 
-        h5f = h5py.File(feature_path + 'train_features.h5', 'w')
+        h5f_train = h5py.File(feature_path + 'train_features.h5', 'w')
+        h5f_test = h5py.File(feature_path + 'test_features.h5', 'w')
 
         for (dir_path, dir_names, filen_ames) in os.walk(sound_path):
             self.dir_names.extend(dir_names)
@@ -59,11 +60,15 @@ class FeatureExtractor:
                 mfcc_feat = mfcc(signal_cut, rate)
                 mfcc_padded = self.padding(mfcc_feat)
 
-                h5f.create_dataset(dir_name + '/' + str(id), data=mfcc_padded)
+                if id < 0.9 * len(wav_files):
+                    h5f_train.create_dataset(dir_name + '/' + str(id), data=mfcc_padded)
+                else:
+                    h5f_test.create_dataset(dir_name + '/' + str(id), data=mfcc_padded)
                 # np.savetxt(feature_path + dir_name + '/' + file_name + '.feature', mfcc_feat, delimiter=',')
                 # print(str((100 * id)/len(self.sample_names)) + '%')
 
-        h5f.close()
+        h5f_test.close()
+        h5f_train.close()
 
     def sample(self, size):
         sample_id = random.sample(range(len(self.sample_names)), min(size, len(self.sample_names)))
@@ -148,5 +153,5 @@ class FeatureExtractor:
 
 if __name__ == '__main__':
     fe = FeatureExtractor()
-    # fe.extract_features('./data/train/audio/', './data/train/features/')
-    fe.visualize('./data/train/audio/one/')
+    fe.extract_features('./data/train/audio/', './data/train/features/')
+    # fe.visualize('./data/train/audio/one/')

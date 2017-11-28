@@ -11,8 +11,16 @@ import h5py
 from feature_extractor import *
 from ann import *
 
+## for cluster
+#DATA_FOLDER = "/work/asr2/bozheniuk/train/"
+DATA_FOLDER = "./data/train/"
 
-DATA_FOLDER = "/work/asr2/bozheniuk/train/"
+## for cluster
+#GRAPH_FOLDER = "/work/asr2/bozheniuk/graph/"
+GRAPH_FOLDER = "./graph/"
+
+LOAD_PATH = GRAPH_FOLDER + '2017-11-27-22:42:22/'
+
 FEATURE_FILE = "features/train_features.h5"
 LABELS = {'yes', 'no', 'up', 'down', 'left', 'right', 'on', 'off', 'stop', 'go'}
 
@@ -25,7 +33,7 @@ def termination_funk():
 atexit.register(termination_funk)
 
 global path
-path = "./graph/" + datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S") + "/"
+path = GRAPH_FOLDER + datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S") + "/"
 
 if not os.path.exists(path):
     os.makedirs(path)
@@ -123,19 +131,35 @@ data_shape = np.shape(d_train)
 
 batch_size = 100
 
-LOAD_PATH = './graph/2017-11-27-22:42:22/'
 
-with tf.Session() as sess:
-    # init = tf.global_variables_initializer()
+def train_net():
+    with tf.Session() as sess:
+        # init = tf.global_variables_initializer()
 
-    global network
-    network = ANN(sess, batch_size, save_path = path)
-    network.build_lace(len(LABELS), input_size = [data_shape[1], data_shape[2], 1], channel_start = 128)
-    # sess.run(init)
-    # network.restore_model(LOAD_PATH)
-    # print('cl: ', cl)
-    # print('pred: ', pred)
-    # print('true: ', l[0:10])
+        global network
+        network = ANN(sess, batch_size, save_path = path)
+        network.build_lace(len(LABELS), input_size = [data_shape[1], data_shape[2], 1], channel_start = 128)
+        # sess.run(init)
+        # network.restore_model(LOAD_PATH)
+        # print('cl: ', cl)
+        # print('pred: ', pred)
+        # print('true: ', l[0:10])
 
-    network.train(d_train, l_train, d_valid, l_valid)
+        network.train(d_train, l_train, d_valid, l_valid)
 
+def test_net():
+    with tf.Session() as sess:
+        # init = tf.global_variables_initializer()
+
+        global network
+        network = ANN(sess, batch_size, save_path=path)
+        network.build_lace(len(LABELS), input_size=[data_shape[1], data_shape[2], 1], channel_start=128)
+        # sess.run(init)
+        network.restore_model(LOAD_PATH)
+        # print('cl: ', cl)
+        # print('pred: ', pred)
+        # print('true: ', l[0:10])
+
+
+if __name__ == '__main__':
+    train_net()
