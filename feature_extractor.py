@@ -7,7 +7,7 @@ import struct
 from python_speech_features import mfcc
 import webrtcvad
 import scipy.io.wavfile as wav
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 from wav_crop import crop_wav
 
@@ -94,57 +94,57 @@ class FeatureExtractor:
         for i in range(MINIMUM_FEATURE_SIZE - np.shape(mfcc_feat)[0]):
             mfcc_feat = np.concatenate((mfcc_feat, np.zeros((1, np.shape(mfcc_feat)[1]))), axis=0)
         return mfcc_feat
-
-    def visualize(self, path):
-        for (dirpath, dirnames, filenames) in os.walk(path):
-            self.sample_names.extend(filenames)
-            break
-
-        id = random.sample(range(len(self.sample_names)), 1)[0]
-        sample_file_name = path + self.sample_names[id]
-        # sample_file_name = self.path + "0f7dc557_nohash_2.wav"
-        (rate, sig) = wav.read(sample_file_name)
-
-        print(sample_file_name)
-
-        fig = plt.figure(figsize=(14, 8))
-        ax1 = fig.add_subplot(211)
-        ax1.set_title('Raw wave of ' + sample_file_name)
-        ax1.set_ylabel('Amplitude')
-        ax1.plot(sig)
-
-        signal_cut = []
-        # mfcc_feat = mfcc(sig, rate)
-        raw_cut = crop_wav(sig, rate)
-
-        for i,s in enumerate(raw_cut):
-            print(s)
-            print(array.array("h", s))
-            signal_cut.extend(array.array("h", s))
-
-        print(len(signal_cut))
-        print(len(sig))
-
-        ax2 = fig.add_subplot(212)
-        ax2.set_title('Cut Signal ' + sample_file_name)
-        ax2.set_ylabel('Amplitude')
-        ax2.plot(signal_cut)
-
-        signal_cut = np.array(signal_cut)
-
-        mfcc_feat = mfcc(signal_cut, rate)
-        mfcc_padded = self.padding(mfcc_feat)
-
-        print(mfcc_feat)
-        print(mfcc_padded)
-
-        print(np.shape(mfcc_feat))
-        print(np.shape(mfcc_padded))
-
-
-        plt.show()
-
-        return 0
+    #
+    # def visualize(self, path):
+    #     for (dirpath, dirnames, filenames) in os.walk(path):
+    #         self.sample_names.extend(filenames)
+    #         break
+    #
+    #     id = random.sample(range(len(self.sample_names)), 1)[0]
+    #     sample_file_name = path + self.sample_names[id]
+    #     # sample_file_name = self.path + "0f7dc557_nohash_2.wav"
+    #     (rate, sig) = wav.read(sample_file_name)
+    #
+    #     print(sample_file_name)
+    #
+    #     fig = plt.figure(figsize=(14, 8))
+    #     ax1 = fig.add_subplot(211)
+    #     ax1.set_title('Raw wave of ' + sample_file_name)
+    #     ax1.set_ylabel('Amplitude')
+    #     ax1.plot(sig)
+    #
+    #     signal_cut = []
+    #     # mfcc_feat = mfcc(sig, rate)
+    #     raw_cut = crop_wav(sig, rate)
+    #
+    #     for i,s in enumerate(raw_cut):
+    #         print(s)
+    #         print(array.array("h", s))
+    #         signal_cut.extend(array.array("h", s))
+    #
+    #     print(len(signal_cut))
+    #     print(len(sig))
+    #
+    #     ax2 = fig.add_subplot(212)
+    #     ax2.set_title('Cut Signal ' + sample_file_name)
+    #     ax2.set_ylabel('Amplitude')
+    #     ax2.plot(signal_cut)
+    #
+    #     signal_cut = np.array(signal_cut)
+    #
+    #     mfcc_feat = mfcc(signal_cut, rate)
+    #     mfcc_padded = self.padding(mfcc_feat)
+    #
+    #     print(mfcc_feat)
+    #     print(mfcc_padded)
+    #
+    #     print(np.shape(mfcc_feat))
+    #     print(np.shape(mfcc_padded))
+    #
+    #
+    #     plt.show()
+    #
+    #     return 0
 
 if __name__ == '__main__':
     fe = FeatureExtractor()
