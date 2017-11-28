@@ -96,6 +96,7 @@ class ANN:
                                                                                                       name = 'linear_mapping')
 
             self.classification = tf.nn.softmax(self.layer['size_mapping'])
+            self.prediction = tf.argmax(self.classification, axis = -1)
 
             shape = self.classification.get_shape().as_list()
             # print('classification ', shape)
@@ -104,6 +105,8 @@ class ANN:
             one_hot = tf.one_hot(self.ground_truth, output_size, 1.0, 0.0, name='gt_one_hot')
             shape = one_hot.get_shape().as_list()
             # print('one hot ', shape)
+
+            self.accuracy = tf.contrib.metrics.accuracy(labels = self.ground_truth, predictions = self.prediction)
 
             self.cross_entropy = -tf.reduce_mean(tf.reduce_sum(tf.multiply(one_hot, tf.log(tf.clip_by_value(self.classification,1e-10,1.0)))), name = 'cross_enropy')
 
@@ -114,29 +117,37 @@ class ANN:
 
             self.optimizer = tf.train.AdamOptimizer().minimize(self.cross_entropy)
 
-            init_op = tf.global_variables_initializer()
-            self.sess.run(init_op)
+            global_init_op = tf.global_variables_initializer()
+            loacl_init_op = tf.local_variables_initializer()
+            self.sess.run(global_init_op)
+            self.sess.run(loacl_init_op)
 
             # self.save_model(self.save_path + self.model_name, write_graph=True)
 
+    def test(self, data, labels):
+        accuracy, cl, pred = self.sess.run([self.accuracy, self.classification, self.prediction], {
+                    self.input: np.expand_dims(data, axis=-1),
+                    self.ground_truth: labels,
+                    self.phase: False,})
+
+        return accuracy, cl, pred
 
 
-
-    def train(self, data, labels):
+    def train(self, train_data, train_labels, valid_data, valid_labels):
 
         save_graph = False
         if self.save_path is None:
             self.save_path = "./graph/" + datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S") + "/"
             save_graph = True
 
-        data_shape = np.shape(data)
+        data_shape = np.shape(train_data)
 
         for j in range(100):
             mean_ent = 0
             i = 0
             while ((i + 1) * self.batch_size) <  data_shape[0]:
-                d = data[i * self.batch_size : (i + 1) * self.batch_size]
-                l = labels[i * self.batch_size : (i + 1) * self.batch_size]
+                d = train_data[i * self.batch_size : (i + 1) * self.batch_size]
+                l = train_labels[i * self.batch_size : (i + 1) * self.batch_size]
                 _, ent = self.sess.run([self.optimizer, self.cross_entropy], {
                     self.input: np.expand_dims(d, axis=-1),
                     self.ground_truth: l,
@@ -149,17 +160,19 @@ class ANN:
                 self.save_model(self.save_path + self.model_name, step = j, write_graph = save_graph)
                 save_graph = False
 
-            print('Step ', j, ' ent ', float(mean_ent)/float(i))
+            accuracy = self.test(valid_data, valid_labels)
+
+            print('Step ', j, ' ent ', float(mean_ent)/float(i), ' acc ', accuracy)
 
     def restore_model(self, loadpath):
-        # try:
-        restore = tf.train.Saver()
-        # restore.restore(self.sess, tf.train.latest_checkpoint(loadpath))
-        restore.restore(self.sess, loadpath + 'lace-0')
-        print('Model restored')
-        # except tf.errors as e:
-        #     print('Unable to load the model')
-        #     print(e)
+        try:
+            restore = tf.train.Saver()
+            # restore.restore(self.sess, tf.train.latest_checkpoint(loadpath))
+            restore.restore(self.sess, loadpath + 'lace-0')
+            print('Model restored')
+        except tf.errors as e:
+             print('Unable to load the model')
+             print(e)
 
     def save_model(self, filename, step = 0, write_graph = False):
         try:
