@@ -102,13 +102,19 @@ class ANN:
             # print('classification ', shape)
 
             self.ground_truth = tf.placeholder('int64', [None], name = 'true_label')
-            one_hot = tf.one_hot(self.ground_truth, output_size, 1.0, 0.0, name='gt_one_hot')
+            one_hot = tf.one_hot(self.ground_truth, output_size, name='gt_one_hot')
             shape = one_hot.get_shape().as_list()
             # print('one hot ', shape)
 
             self.accuracy = tf.contrib.metrics.accuracy(labels = self.ground_truth, predictions = self.prediction)
 
-            self.cross_entropy = -tf.reduce_mean(tf.reduce_sum(tf.multiply(one_hot, tf.log(tf.clip_by_value(self.classification,1e-10,1.0)))), name = 'cross_enropy')
+            # self.cross_entropy = -tf.reduce_mean(tf.reduce_sum(tf.multiply(one_hot, tf.log(tf.clip_by_value(self.classification,1e-10,1.0)))), name = 'cross_enropy')
+
+            self.cross_entropy = tf.nn.softmax_cross_entropy_with_logits(labels = one_hot, logits = self.layer['size_mapping'])
+
+            self.mean_cross_entropy = tf.reduce_mean(self.cross_entropy)
+
+            self.loss = tf.reduce_sum(tf.reduce_sum(tf.square(tf.subtract(one_hot, self.classification))))
 
             shape = self.cross_entropy.get_shape().as_list()
             # print('cross entropy ', shape)
@@ -124,13 +130,18 @@ class ANN:
 
             # self.save_model(self.save_path + self.model_name, write_graph=True)
 
+    def get_random_indexes(self, size):
+        indexes = range(size)
+        indexes = np.random.permutation(indexes)
+        return indexes
+
     def test(self, data, labels):
         accuracy, cl, pred = self.sess.run([self.accuracy, self.classification, self.prediction], {
                     self.input: np.expand_dims(data, axis=-1),
                     self.ground_truth: labels,
                     self.phase: False,})
 
-        return accuracy, pred
+        return accuracy
 
 
     def train(self, train_data, train_labels, valid_data, valid_labels):
@@ -140,15 +151,28 @@ class ANN:
             self.save_path = "./graph/" + datetime.datetime.now().strftime("%Y-%m-%d-%H:%M:%S") + "/"
             save_graph = True
 
+        train_data = np.array(train_data)
+        train_labels = np.array(train_labels)
         data_shape = np.shape(train_data)
+
+
 
         for j in range(100):
             mean_ent = 0
             i = 0
+
+            accuracy = self.test(valid_data, valid_labels)
+
+            print('Step ', j, ' acc ', accuracy)
+
+            indexes = self.get_random_indexes(data_shape[0])
+            shuffled_data = train_data[indexes]
+            shuffled_labels = train_labels[indexes]
+
             while ((i + 1) * self.batch_size) <  data_shape[0]:
-                d = train_data[i * self.batch_size : (i + 1) * self.batch_size]
-                l = train_labels[i * self.batch_size : (i + 1) * self.batch_size]
-                _, ent = self.sess.run([self.optimizer, self.cross_entropy], {
+                d = shuffled_data[i * self.batch_size : (i + 1) * self.batch_size]
+                l = shuffled_labels[i * self.batch_size : (i + 1) * self.batch_size]
+                _, ent = self.sess.run([self.optimizer, self.mean_cross_entropy], {
                     self.input: np.expand_dims(d, axis=-1),
                     self.ground_truth: l,
                     self.phase: True,
@@ -160,10 +184,9 @@ class ANN:
                 self.save_model(self.save_path + self.model_name, step = j, write_graph = save_graph)
                 save_graph = False
 
-            accuracy = self.test(valid_data, valid_labels)
+            print('ent ', float(mean_ent) / float(i))
 
-            print('Step ', j, ' ent ', float(mean_ent)/float(i), ' acc ', accuracy)
-            sys.stdout.write('Step ' + str(j) + ' ent ' + str(float(mean_ent)/float(i)) + ' acc ' + str(accuracy))
+            # sys.stdout.write('Step ' + str(j) + ' ent ' + str(float(mean_ent)/float(i)) + ' acc ' + str(accuracy) + '\n')
             sys.stdout.flush()
 
     def restore_model(self, loadpath):        

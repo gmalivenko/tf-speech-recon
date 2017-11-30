@@ -12,14 +12,14 @@ from feature_extractor import *
 from ann import *
 
 ## for cluster
-DATA_FOLDER = "/work/asr2/bozheniuk/train/"
-#DATA_FOLDER = "./data/train/"
+# DATA_FOLDER = "/work/asr2/bozheniuk/train/"
+DATA_FOLDER = "./data/train/"
 
 ## for cluster
-GRAPH_FOLDER = "/work/asr2/bozheniuk/graph/"
-#GRAPH_FOLDER = "./graph/"
+# GRAPH_FOLDER = "/work/asr2/bozheniuk/graph/"
+GRAPH_FOLDER = "./graph/"
 
-LOAD_PATH = GRAPH_FOLDER + 'graph1/'
+LOAD_PATH = GRAPH_FOLDER + 'graph2/'
 
 FEATURE_FILE = "features/train_features.h5"
 LABELS = ['yes', 'no', 'up', 'down', 'left', 'right', 'on', 'off', 'stop', 'go']
@@ -93,19 +93,19 @@ class Data:
         self.data = np.random.permutation(self.data)
         
     def get_train_samples(self):
-        res = [x[0] for x in self.data]
+        res = [x[0] for x in self.data[:int(0.9 * self.data_size)]]
         return res
 
     def get_train_labels(self):
-        res = [x[1] for x in self.data]
+        res = [x[1] for x in self.data[:int(0.9 * self.data_size)]]
         return res
 
     def get_validation_samples(self):
-        res = [x[0] for x in self.data[int(0.8 * self.data_size):]]
+        res = [x[0] for x in self.data[int(0.9 * self.data_size):]]
         return res
 
     def get_validation_labels(self):
-        res = [x[1] for x in self.data[int(0.8 * self.data_size):]]
+        res = [x[1] for x in self.data[int(0.9 * self.data_size):]]
         return res
 
 
@@ -152,7 +152,9 @@ def train_net():
 
         global network
         network = ANN(sess, batch_size, save_path = path)
-        network.build_lace(len(LABELS), input_size = [data_shape[1], data_shape[2], 1], channel_start = 128)
+        network.build_lace(len(LABELS), input_size = [data_shape[1], data_shape[2], 1], channel_start = 8)
+
+        count_vars()
         # sess.run(init)
         # network.restore_model(LOAD_PATH)
         # print('cl: ', cl)
@@ -167,24 +169,26 @@ def test_net():
 
         global network
         network = ANN(sess, batch_size, save_path=path)
-        network.build_lace(len(LABELS), input_size=[data_shape[1], data_shape[2], 1], channel_start=128)
+        network.build_lace(len(LABELS), input_size=[data_shape[1], data_shape[2], 1], channel_start=8)
+
+        count_vars()
         # sess.run(init)
         network.restore_model(LOAD_PATH)
     
-        shape = np.shape(go_data)
+        shape = np.shape(d_train)
 
         batch = 100
         i = 0
 
         while ((i+1) * batch) < shape[0]:
-            d = go_data[i * batch : (i + 1) * batch]
-            l = go_label[i * batch : (i + 1) * batch] 
+            d = d_train[i * batch : (i + 1) * batch]
+            l = l_train[i * batch : (i + 1) * batch]
             ac, pred = network.test(d, l)
             print('accuracy: ', ac)
             i += 1
 
-        #    print('pred: ', pred)
-        #    print('true: ', l)
+            print('pred: ', pred)
+            print('true: ', l)
         # print('cl: ', cl)
         # print('pred: ', pred)
         # print('true: ', l[0:10])
