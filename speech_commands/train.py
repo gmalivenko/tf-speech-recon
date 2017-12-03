@@ -258,6 +258,9 @@ def main(_):
       tf.logging.info('Saving to "%s-%d"', checkpoint_path, training_step)
       saver.save(sess, checkpoint_path, global_step=training_step)
 
+  # vrs = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='weighted_sum')
+  # print(sess.run(vrs))
+
   set_size = audio_processor.set_size('testing')
   tf.logging.info('set_size=%d', set_size)
   total_accuracy = 0
@@ -265,6 +268,7 @@ def main(_):
   for i in xrange(0, set_size, FLAGS.batch_size):
     test_fingerprints, test_ground_truth = audio_processor.get_data(
         FLAGS.batch_size, i, model_settings, 0.0, 0.0, 0, 'testing', sess)
+    # test_fingerprints, test_ground_truth = audio_processor.get_unprocessed_data(FLAGS.batch_size, model_settings, 'training')
     test_accuracy, conf_matrix = sess.run(
         [evaluation_step, confusion_matrix],
         feed_dict={
@@ -280,7 +284,23 @@ def main(_):
       total_conf_matrix += conf_matrix
   tf.logging.info('Confusion Matrix:\n %s' % (total_conf_matrix))
   tf.logging.info('Final test accuracy = %.1f%% (N=%d)' % (total_accuracy * 100,
-                                                           set_size))
+                                                            set_size))
+
+  for i in xrange(0, 2000, FLAGS.batch_size):
+      test_data, ground_truth = audio_processor.get_test_data(200, i, model_settings, 0.0, 0.0, 0, 'testing', '/home/vitaly/PycharmProjects/tf-speech-recon/data/train/audio/left/', sess)
+      prediction, eval, con_mat = sess.run(
+          [predicted_indices, evaluation_step, confusion_matrix],
+          feed_dict={
+              fingerprint_input: test_data,
+              ground_truth_input: ground_truth,
+              dropout_prob: 1.0
+          })
+
+      # print(prediction)
+      print(eval)
+      print(con_mat)
+
+
 
 
 if __name__ == '__main__':
@@ -373,7 +393,7 @@ if __name__ == '__main__':
   parser.add_argument(
       '--how_many_training_steps',
       type=str,
-      default='15000,3000',
+      default='4000,1000',
       help='How many training loops to run',)
   parser.add_argument(
       '--eval_step_interval',
@@ -388,7 +408,7 @@ if __name__ == '__main__':
   parser.add_argument(
       '--batch_size',
       type=int,
-      default=100,
+      default=10,
       help='How many items to train with at once',)
   parser.add_argument(
       '--summaries_dir',
@@ -413,12 +433,13 @@ if __name__ == '__main__':
   parser.add_argument(
       '--start_checkpoint',
       type=str,
+      # default='/home/vitaly/competition/graph/lace_32/lace.ckpt-18000',
       default='',
       help='If specified, restore this pretrained model before any training.')
   parser.add_argument(
       '--model_architecture',
       type=str,
-      default='lace',
+      default='low_latency_svdf',
       help='What model architecture to use')
   parser.add_argument(
       '--check_nans',

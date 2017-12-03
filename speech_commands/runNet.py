@@ -42,30 +42,40 @@ def main(_):
       tf.float32, [None, fingerprint_size], name='fingerprint_input')
 
   logits = models.create_model(fingerprint_input, model_settings, FLAGS.model_architecture, is_training=False)
+  classification = tf.nn.softmax(logits)
 
-  predicted_indices = tf.argmax(logits, 1)
+  predicted_indices = tf.argmax(classification, axis=-1)
 
-  #tf.global_variables_initializer().run()
+  tf.global_variables_initializer().run()
 
   models.load_variables_from_checkpoint(sess, FLAGS.start_checkpoint)
+  # global_step = tf.contrib.framework.get_or_create_global_step()
+  # start_step = global_step.eval(session=sess)
+  path_to_labels = FLAGS.labels
+
+  # vrs = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='weighted_sum')
+  # print(sess.run(vrs))
 
   indices = []
-  for i in xrange(0, 158538, FLAGS.batch_size):
-    test_fingerprints = audio_processor.get_test_data(FLAGS.batch_size, i, model_settings)
+  for i in xrange(0, 10, FLAGS.batch_size):
+    print(i)
+    test_fingerprints = audio_processor.get_test_data(FLAGS.batch_size, i, model_settings, sess)
     #print (test_fingerprints)
-    batch_indices = sess.run(predicted_indices, feed_dict={fingerprint_input: test_fingerprints})
+    batch_indices, logits_ = sess.run([predicted_indices, classification], feed_dict={fingerprint_input: test_fingerprints})
+    print(logits_)
     indices.extend(batch_indices)
-  path_to_labels = FLAGS.labels
+
   labels = load_labels(path_to_labels)
   human_string = []
   for i in indices:
       human_string.append(labels[i])
+  print(human_string)
   audio_processor.write_to_csv(human_string)
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
   parser.add_argument(
-      '--labels', type=str, default='/tmp/speech_commands_train/lace_labels.txt', help='Path to file containing labels.')
+      '--labels', type=str, default='/home/vitaly/competition/graph/lace_32/lace_labels.txt', help='Path to file containing labels.')
   parser.add_argument(
       '--data_url',
       type=str,
@@ -168,7 +178,7 @@ if __name__ == '__main__':
   parser.add_argument(
       '--batch_size',
       type=int,
-      default=100,
+      default=1,
       help='How many items to train with at once',)
   parser.add_argument(
       '--summaries_dir',
@@ -193,7 +203,7 @@ if __name__ == '__main__':
   parser.add_argument(
       '--start_checkpoint',
       type=str,
-      default='/tmp/speech_commands_train/lace.ckpt-18000',
+      default='/home/vitaly/competition/graph/lace_32/lace.ckpt-18000',
       help='If specified, restore this pretrained model before any training.')
   parser.add_argument(
       '--model_architecture',
