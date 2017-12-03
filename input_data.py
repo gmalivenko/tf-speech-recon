@@ -43,7 +43,7 @@ SILENCE_INDEX = 0
 UNKNOWN_WORD_LABEL = '_unknown_'
 UNKNOWN_WORD_INDEX = 1
 BACKGROUND_NOISE_DIR_NAME = '_background_noise_'
-RANDOM_SEED = 59185
+RANDOM_SEED = 12345
 
 
 def prepare_words_list(wanted_words):
@@ -289,6 +289,18 @@ class AudioProcessor(object):
         self.word_to_index[word] = UNKNOWN_WORD_INDEX
     self.word_to_index[SILENCE_LABEL] = SILENCE_INDEX
 
+    # self.data_index['testing'] = np.random.permutation(self.data_index['testing'])
+
+    # self.data_index['testing'] = []
+    # fn = []
+    # l_path = '/home/vitaly/PycharmProjects/tf-speech-recon/data/train/audio/left/'
+    # for (dir_path, dir_names, file_names) in os.walk(l_path):
+    #   fn.extend(file_names)
+    #   break
+    #
+    # for f in fn:
+    #   self.data_index['testing'].append({'label': 'left', 'file': l_path + f})
+
   def prepare_background_data(self):
     """Searches a folder for background noise audio, and loads it into memory.
 
@@ -383,6 +395,7 @@ class AudioProcessor(object):
         spectrogram,
         wav_decoder.sample_rate,
         dct_coefficient_count=model_settings['dct_coefficient_count'])
+
 
   def set_size(self, mode):
     """Calculates the number of samples in the dataset partition.
@@ -486,6 +499,80 @@ class AudioProcessor(object):
       labels[i - offset, label_index] = 1
     return data, labels
 
+
+  def get_test_data(self, how_many, offset, model_settings, background_frequency,
+               background_volume_range, time_shift, mode, test_path, sess):
+    candidates = []
+    for (dir_path, dir_names, file_names) in os.walk(test_path):
+      candidates.extend(file_names)
+      break
+
+    # candidates = self.data_index[mode]
+    # if how_many == -1:
+    #   sample_count = len(candidates)
+    # else:
+    sample_count = max(0, min(how_many, len(candidates) - offset))
+    # Data and labels will be populated and returned.
+    data = np.zeros((sample_count, model_settings['fingerprint_size']))
+    labels = np.zeros((sample_count, model_settings['label_count']))
+    desired_samples = model_settings['desired_samples']
+    use_background = self.background_data and (mode == 'training')
+    pick_deterministically = (mode != 'training')
+    # Use the processing graph we created earlier to repeatedly to generate the
+    # final output sample data we'll use in training.
+    for i in xrange(offset, offset + sample_count):
+      # Pick which audio sample to use.
+      if how_many == -1 or pick_deterministically:
+        sample_index = i
+      else:
+        sample_index = np.random.randint(len(candidates))
+      sample = candidates[sample_index]
+      # If we're time shifting, set up the offset for this sample.
+      if time_shift > 0:
+        time_shift_amount = np.random.randint(-time_shift, time_shift)
+      else:
+        time_shift_amount = 0
+      if time_shift_amount > 0:
+        time_shift_padding = [[time_shift_amount, 0], [0, 0]]
+        time_shift_offset = [0, 0]
+      else:
+        time_shift_padding = [[0, -time_shift_amount], [0, 0]]
+        time_shift_offset = [-time_shift_amount, 0]
+      input_dict = {
+          self.wav_filename_placeholder_: test_path + sample,
+          self.time_shift_padding_placeholder_: time_shift_padding,
+          self.time_shift_offset_placeholder_: time_shift_offset,
+      }
+      # Choose a section of background noise to mix in.
+      if use_background:
+        background_index = np.random.randint(len(self.background_data))
+        background_samples = self.background_data[background_index]
+        background_offset = np.random.randint(
+            0, len(background_samples) - model_settings['desired_samples'])
+        background_clipped = background_samples[background_offset:(
+            background_offset + desired_samples)]
+        background_reshaped = background_clipped.reshape([desired_samples, 1])
+        if np.random.uniform(0, 1) < background_frequency:
+          background_volume = np.random.uniform(0, background_volume_range)
+        else:
+          background_volume = 0
+      else:
+        background_reshaped = np.zeros([desired_samples, 1])
+        background_volume = 0
+      input_dict[self.background_data_placeholder_] = background_reshaped
+      input_dict[self.background_volume_placeholder_] = background_volume
+      # If we want silence, mute out the main sample but leave the background.
+
+      input_dict[self.foreground_volume_placeholder_] = 1
+      # Run the graph to produce the output audio.
+      sc_f = sess.run(self.mfcc_, feed_dict=input_dict)
+      # print(tf.shape(sc_f))
+      data[i - offset, :] = sc_f.flatten()
+
+      label_index = self.word_to_index['left']
+      labels[i - offset, label_index] = 1
+    return data, labels
+
   def get_unprocessed_data(self, how_many, model_settings, mode):
     """Retrieve sample data for the given partition, with no transformations.
 
@@ -527,7 +614,9 @@ class AudioProcessor(object):
           input_dict[foreground_volume_placeholder] = 0
         else:
           input_dict[foreground_volume_placeholder] = 1
-        data[i, :] = sess.run(scaled_foreground, feed_dict=input_dict).flatten()
+        sc_f = sess.run(scaled_foreground, feed_dict=input_dict).flatten()
+        print(tf.shape(sc_f))
+        data[i, :] = sc_f.flatten()
         label_index = self.word_to_index[sample['label']]
         labels.append(words_list[label_index])
     return data, labels
