@@ -35,13 +35,13 @@ def main(_):
       len(input_data.prepare_words_list(FLAGS.wanted_words.split(','))),
       FLAGS.sample_rate, FLAGS.clip_duration_ms, FLAGS.window_size_ms,
       FLAGS.window_stride_ms, FLAGS.dct_coefficient_count)
-  audio_processor = submission_processor.SubmissionProcessor(model_settings)
+  audio_processor = submission_processor.SubmissionProcessor(FLAGS)
   fingerprint_size = model_settings['fingerprint_size']
 
   fingerprint_input = tf.placeholder(
       tf.float32, [None, fingerprint_size], name='fingerprint_input')
 
-  logits = models.create_model(fingerprint_input, model_settings, FLAGS.model_architecture, is_training=False)
+  logits, dropout_prob, layers = models.create_model(fingerprint_input, model_settings, FLAGS.model_architecture, is_training=False)
   classification = tf.nn.softmax(logits)
 
   predicted_indices = tf.argmax(classification, axis=-1)
@@ -57,7 +57,7 @@ def main(_):
   # print(sess.run(vrs))
 
   indices = []
-  for i in xrange(0, 10, FLAGS.batch_size):
+  for i in xrange(0, 158538, FLAGS.batch_size):
     print(i)
     test_fingerprints = audio_processor.get_test_data(FLAGS.batch_size, i, model_settings, sess)
     #print (test_fingerprints)
@@ -75,7 +75,7 @@ def main(_):
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
   parser.add_argument(
-      '--labels', type=str, default='/home/vitaly/competition/graph/lace_32/lace_labels.txt', help='Path to file containing labels.')
+      '--labels', type=str, default='lace_labels.txt', help='Path to file containing labels.')
   parser.add_argument(
       '--data_url',
       type=str,
@@ -86,7 +86,7 @@ if __name__ == '__main__':
   parser.add_argument(
       '--data_dir',
       type=str,
-      default='./data/train/audio/',
+      default='/work/asr2/bozheniuk/tmp/speech_dataset/',
       help="""\
       Where to download the speech training data to.
       """)
@@ -203,7 +203,7 @@ if __name__ == '__main__':
   parser.add_argument(
       '--start_checkpoint',
       type=str,
-      default='/home/vitaly/competition/graph/lace_32/lace.ckpt-18000',
+      default='/work/asr2/bozheniuk/tmp/speech_commands_train/lace_128ch/lace.ckpt-30000',
       help='If specified, restore this pretrained model before any training.')
   parser.add_argument(
       '--model_architecture',
