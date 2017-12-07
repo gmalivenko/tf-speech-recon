@@ -106,6 +106,8 @@ def create_model(fingerprint_input, model_settings, model_architecture,
     return create_conv_model(fingerprint_input, model_settings, is_training)
   elif model_architecture == 'lace':
     return create_lace_model(fingerprint_input, model_settings, is_training)
+  elif model_architecture == 'lace_no_batch_norm':
+    return create_lace_no_batch_norm_model(fingerprint_input, model_settings, is_training)
   elif model_architecture == 'low_latency_conv':
     return create_low_latency_conv_model(fingerprint_input, model_settings,
                                          is_training)
@@ -125,7 +127,7 @@ def load_variables_from_checkpoint(sess, start_checkpoint):
     sess: TensorFlow session.
     start_checkpoint: Path to saved checkpoint on disk.
   """
-  saver = tf.train.Saver(tf.global_variables())
+  saver = tf.train.Saver()
   saver.restore(sess, start_checkpoint)
 
 
@@ -168,13 +170,111 @@ def create_single_fc_model(fingerprint_input, model_settings, is_training):
     return logits
 
 
-def create_lace_model(fingerprint_input, model_settings, is_training):
-    if is_training:
-        dropout_prob = tf.placeholder(tf.float32, name='dropout_prob')
+def create_lace_model(fingerprint_input, model_settings, phase):
     input_frequency_size = model_settings['dct_coefficient_count']
     input_time_size = model_settings['spectrogram_length']
     fingerprint_4d = tf.reshape(fingerprint_input,
                                 [-1, input_time_size, input_frequency_size, 1])
+
+    model_name = 'lace'
+    w = {}
+    layer = {}
+
+    initializer = tf.truncated_normal_initializer(0, 0.02)
+    activation_fn = tf.nn.relu
+
+    channel_start = 128
+    jump_block_num = 4
+    jump_net_num = 2
+
+    #phase = tf.placeholder(tf.bool, name='phase')
+
+    layer['output_0'] = fingerprint_4d
+
+    current_channel_num = channel_start
+
+    for i in range(jump_block_num):
+        layer['l_' + str(i + 1) + '_0_o'], \
+        w['l_' + str(i + 1) + '_0_ow'] = conv2d(
+            layer['output_' + str(i)],
+            current_channel_num, [3, 3], [2, 2],
+            initializer,
+            activation_fn=None,
+            padding='SAME',
+            name='l_' + str(i + 1) + '_c0')
+
+        # print(tf.shape(w['l_' + str(i + 1) + '_0_o']))
+
+        for j in range(jump_net_num):
+            index = '_' + str(i + 1) + '_' + str(j + 1) + '_'
+            prev_output = 'l_' + str(i + 1) + '_' + str(j) + '_o'
+
+            layer['l' + index + 'c1'], w['l' + index + 'c1w'] = conv2d(
+                layer[prev_output],
+                current_channel_num,
+                [3, 3], [1, 1],
+                initializer,
+                activation_fn=None,
+                padding='SAME',
+                name='l' + index + 'c1')
+            layer['l' + index + 'bn1'] = tf.contrib.layers.batch_norm(
+                layer['l' + index + 'c1'],
+                center=True, scale=True,
+                is_training=phase)
+            layer['l' + index + 'y1'] = tf.nn.relu(layer['l' + index + 'bn1'])
+            layer['l' + index + 'c2'], w['l' + index + 'c2w'] = conv2d(
+                layer['l' + index + 'y1'],
+                current_channel_num,
+                [3, 3], [1, 1],
+                initializer,
+                activation_fn=None,
+                padding='SAME',
+                name='l' + index + 'c2')
+            layer['l' + index + 'p'] = tf.add(
+                layer['l' + index + 'c2'],
+                layer[prev_output])
+            layer['l' + index + 'bn2'] = tf.contrib.layers.batch_norm(
+                layer['l' + index + 'p'],
+                center=True, scale=True,
+                is_training=phase)
+            layer['l' + index + 'o'] = tf.nn.relu(layer['l' + index + 'bn2'])
+            last_layer = layer['l' + index + 'o']
+
+        layer['output_' + str(i + 1)], w['output_' + str(i + 1)] = elementwise_mat_prod(
+            last_layer,
+            name='elementwise_' + str(i + 1))
+        last_layer = layer['output_' + str(i + 1)]
+
+        current_channel_num *= 2
+
+    layer['output'], w['output'] = weighted_sum(last_layer)
+    shape = layer['output'].get_shape().as_list()
+    # print('Shape', shape)
+    # layer['output_flat'] = tf.reshape(layer['output'], [-1, reduce(lambda x, y: x * y, shape[1:])])
+    layer['output_flat'] = tf.squeeze(layer['output'], [1, 2, 4])
+
+
+    label_count = model_settings['label_count']
+    layer['size_mapping'], w['size_mapping_w'], w['size_mapping_b'] = linear(
+        layer['output_flat'],
+        label_count,
+        name='linear_mapping')
+
+    final_fc = layer['size_mapping']
+
+    dropout_prob = tf.placeholder(tf.float32, name='dropout_prob')
+    return final_fc, dropout_prob, layer
+
+
+
+def create_lace_no_batch_norm_model(fingerprint_input, model_settings, is_training):
+    input_frequency_size = model_settings['dct_coefficient_count']
+    input_time_size = model_settings['spectrogram_length']
+    fingerprint_4d = tf.reshape(fingerprint_input,
+                                [-1, input_time_size, input_frequency_size, 1])
+
+    if is_training:
+        dropout_prob = tf.placeholder(tf.float32, name='dropout_prob')
 
     model_name = 'lace'
     w = {}
@@ -217,13 +317,19 @@ def create_lace_model(fingerprint_input, model_settings, is_training):
                 activation_fn=None,
                 padding='SAME',
                 name='l' + index + 'c1')
-            layer['l' + index + 'bn1'] = tf.contrib.layers.batch_norm(
-                layer['l' + index + 'c1'],
-                center=True, scale=True,
-                is_training=is_training)
-            layer['l' + index + 'y1'] = tf.nn.relu(layer['l' + index + 'bn1'])
+            # layer['l' + index + 'bn1'] = tf.contrib.layers.batch_norm(
+            #     layer['l' + index + 'c1'],
+            #     center=True, scale=True,
+            #     is_training=phase)
+            layer['l' + index + 'y1'] = tf.nn.relu(layer['l' + index + 'c1'])
+
+            if is_training:
+                layer['l' + index + 'drop1'] = tf.nn.dropout(layer['l' + index + 'y1'], dropout_prob)
+            else:
+                layer['l' + index + 'drop1'] = layer['l' + index + 'y1']
+
             layer['l' + index + 'c2'], w['l' + index + 'c2w'] = conv2d(
-                layer['l' + index + 'y1'],
+                layer['l' + index + 'drop1'],
                 current_channel_num,
                 [3, 3], [1, 1],
                 initializer,
@@ -233,11 +339,17 @@ def create_lace_model(fingerprint_input, model_settings, is_training):
             layer['l' + index + 'p'] = tf.add(
                 layer['l' + index + 'c2'],
                 layer[prev_output])
-            layer['l' + index + 'bn2'] = tf.contrib.layers.batch_norm(
-                layer['l' + index + 'p'],
-                center=True, scale=True,
-                is_training=is_training)
-            layer['l' + index + 'o'] = tf.nn.relu(layer['l' + index + 'bn2'])
+            # layer['l' + index + 'bn2'] = tf.contrib.layers.batch_norm(
+            #     layer['l' + index + 'p'],
+            #     center=True, scale=True,
+            #     is_training=phase)
+            layer['l' + index + 'y2'] = tf.nn.relu(layer['l' + index + 'p'])
+
+            if is_training:
+                layer['l' + index + 'o'] = tf.nn.dropout(layer['l' + index + 'y2'], dropout_prob)
+            else:
+                layer['l' + index + 'o'] = layer['l' + index + 'y2']
+
             last_layer = layer['l' + index + 'o']
 
         layer['output_' + str(i + 1)], w['output_' + str(i + 1)] = elementwise_mat_prod(
@@ -247,10 +359,12 @@ def create_lace_model(fingerprint_input, model_settings, is_training):
 
         current_channel_num *= 2
 
+    print('creating')
     layer['output'], w['output'] = weighted_sum(last_layer)
     shape = layer['output'].get_shape().as_list()
     # print('Shape', shape)
-    layer['output_flat'] = tf.reshape(layer['output'], [-1, reduce(lambda x, y: x * y, shape[1:])])
+    # layer['output_flat'] = tf.reshape(layer['output'], [-1, reduce(lambda x, y: x * y, shape[1:])])
+    layer['output_flat'] = tf.squeeze(layer['output'], [1, 2, 4])
 
     label_count = model_settings['label_count']
     layer['size_mapping'], w['size_mapping_w'], w['size_mapping_b'] = linear(
@@ -261,10 +375,9 @@ def create_lace_model(fingerprint_input, model_settings, is_training):
     final_fc = layer['size_mapping']
 
     if is_training:
-        return final_fc, dropout_prob
+        return final_fc, dropout_prob, layer
     else:
         return final_fc
-
 
 def create_conv_model(fingerprint_input, model_settings, is_training):
   """Builds a standard convolutional model.
