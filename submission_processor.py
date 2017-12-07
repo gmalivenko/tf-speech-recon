@@ -19,24 +19,24 @@ from tensorflow.python.ops import io_ops
 
 class SubmissionProcessor(object):
 
-  def __init__(self, data_dir):
-    self.data_dir = data_dir
+  def __init__(self, FLAGS):
+    self.data_dir = FLAGS.data_dir
     # self.path = '/home/vitaly/competition/test/audio/'
-    self.path = '/home/vitaly/PycharmProjects/tf-speech-recon/data/train/audio/left/'
+    # self.path = '/home/vitaly/PycharmProjects/tf-speech-recon/data/train/audio/left/'
     self.prepare_data_index()
 
   def prepare_data_index(self):
     self.data_index = []
-    # with open('./sample_submission.csv') as csvfile:
-    #     spamreader = csv.reader(csvfile)
-    #     for row in spamreader:
-    #         self.data_index.append('/home/vitaly/competition/test/audio/' + row[0])
-    #     self.data_index = self.data_index[1:]
+    with open('./sample_submission.csv') as csvfile:
+        spamreader = csv.reader(csvfile)
+        for row in spamreader:
+            self.data_index.append(self.data_dir + row[0])
+        self.data_index = self.data_index[1:]
 
 
-    for (dir_path, dir_names, file_names) in os.walk(self.path):
-        self.data_index.extend(file_names)
-        break
+    # for (dir_path, dir_names, file_names) in os.walk(self.path):
+    #     self.data_index.extend(file_names)
+    #     break
 
 
   def write_to_csv(self, human_string):
@@ -70,11 +70,11 @@ class SubmissionProcessor(object):
       wav_decoder.sample_rate,
       dct_coefficient_count=model_settings['dct_coefficient_count'])
     # for i in range(offset, offset + sample_count):
-    print('filenames: ', candidates[offset:offset + sample_count])
+    # print('filenames: ', candidates[offset:offset + sample_count])
     # print(sample_count)
 
-    for i in range(sample_count):
-        input_dict = {wav_filename_placeholder : self.path + candidates[offset + i]}
-        data[i,:] = sess.run(mfcc, feed_dict=input_dict).flatten()
+    for i in range(offset, offset + sample_count):
+        input_dict = {wav_filename_placeholder : candidates[i]}
+        data[i - offset, :] = sess.run(mfcc, feed_dict=input_dict).flatten()
 
     return data
