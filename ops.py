@@ -84,6 +84,7 @@ def weighted_sum(input_, data_format='NDHWC', padding='VALID', name='weighted_su
         w = tf.get_variable('w', kernel_shape, tf.float32, initializer=initializer)
         out = tf.nn.conv3d(input_expanded, w, stride, padding=padding, data_format=data_format)
 
+
     return out, w
 
 
