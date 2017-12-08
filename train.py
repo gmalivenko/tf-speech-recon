@@ -235,6 +235,7 @@ def main(_):
       total_accuracy = 0
       total_conf_matrix = None
       for i in xrange(0, set_size, FLAGS.batch_size):
+      # print(i, set_size)
         validation_fingerprints, validation_ground_truth = (
             audio_processor.get_data(FLAGS.batch_size, i, model_settings, 0.0,
                                      0.0, 0, 'validation', sess))
@@ -333,6 +334,7 @@ def main(_):
 
 
 if __name__ == '__main__':
+    #TODO: all parameters to config file
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--data_url',
@@ -422,7 +424,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--how_many_training_steps',
         type=str,
-        default='20000,5000, 5000',
+        default='5000, 1000',
         help='How many training loops to run',)
     parser.add_argument(
         '--eval_step_interval',
@@ -432,7 +434,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--learning_rate',
         type=str,
-        default='0.001,0.0001,0.00001',
+        default='0.001,0.0001',
         help='How large a learning rate to use when training.')
     parser.add_argument(
         '--batch_size',
