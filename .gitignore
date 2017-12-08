@@ -1,3 +1,7 @@
+.idea/
+__pycache__/
+TF-deformable-conv/
+
 # Dataset
 data/
 
