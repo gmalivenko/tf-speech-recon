@@ -68,7 +68,6 @@ def elementwise_mat_prod(input_, data_format = 'NHWC', name = 'elemnt_wise'):
 def weighted_sum(input_, data_format = 'NDHWC', padding = 'VALID', name = 'weighted_sum'):
     shape = input_.get_shape().as_list()
     #tesing: ignore kernel_size and derive it from the input shape
-
     with tf.variable_scope(name):
         stride = [1, 1, 1, 1, 1]
         # kernel_shape = [kernel_size[0], kernel_size[1], input_.get_shape()[-1], 1]
