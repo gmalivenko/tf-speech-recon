@@ -21,6 +21,7 @@ from __future__ import print_function
 
 from ops import *
 from functools import reduce
+import configparser
 import math
 
 import tensorflow as tf
@@ -28,7 +29,7 @@ import tensorflow as tf
 
 def prepare_model_settings(label_count, sample_rate, clip_duration_ms,
                            window_size_ms, window_stride_ms,
-                           dct_coefficient_count):
+                           dct_coefficient_count, arch_conf_file):
   """Calculates common settings needed for all models.
 
   Args:
@@ -60,10 +61,11 @@ def prepare_model_settings(label_count, sample_rate, clip_duration_ms,
       'fingerprint_size': fingerprint_size,
       'label_count': label_count,
       'sample_rate': sample_rate,
+      'arch_config_file': arch_conf_file
   }
 
 
-def create_model(fingerprint_input, model_settings, model_architecture,
+def create_model(fingerprint_input, model_settings,
                  is_training, runtime_settings=None):
   """Builds a model of the requested architecture compatible with the settings.
 
@@ -98,6 +100,11 @@ def create_model(fingerprint_input, model_settings, model_architecture,
     Exception: If the architecture type isn't recognized.
   """
 
+  configFilePath = model_settings['arch_config_file']
+  parser = configparser.ConfigParser()
+  parser.read(configFilePath)
+
+  model_architecture = parser['arch-parameters']['arch']
 
   if model_architecture == 'single_fc':
     return create_single_fc_model(fingerprint_input, model_settings,
@@ -105,7 +112,7 @@ def create_model(fingerprint_input, model_settings, model_architecture,
   elif model_architecture == 'conv':
     return create_conv_model(fingerprint_input, model_settings, is_training)
   elif model_architecture == 'lace':
-    return create_lace_model(fingerprint_input, model_settings, is_training)
+    return create_lace_model(fingerprint_input, model_settings, parser, is_training)
   elif model_architecture == 'lace_no_batch_norm':
     return create_lace_no_batch_norm_model(fingerprint_input, model_settings, is_training)
   elif model_architecture == 'low_latency_conv':
@@ -170,22 +177,21 @@ def create_single_fc_model(fingerprint_input, model_settings, is_training):
     return logits
 
 
-def create_lace_model(fingerprint_input, model_settings, phase):
+def create_lace_model(fingerprint_input, model_settings, parser, is_training):
     input_frequency_size = model_settings['dct_coefficient_count']
     input_time_size = model_settings['spectrogram_length']
     fingerprint_4d = tf.reshape(fingerprint_input,
                                 [-1, input_time_size, input_frequency_size, 1])
 
-    model_name = 'lace'
     w = {}
     layer = {}
 
     initializer = tf.truncated_normal_initializer(0, 0.02)
     activation_fn = tf.nn.relu
 
-    channel_start = 128
-    jump_block_num = 4
-    jump_net_num = 2
+    channel_start = int(parser['arch-parameters']['channel_size'])
+    jump_block_num = int(parser['arch-parameters']['jump_block_num'])
+    jump_net_num = int(parser['arch-parameters']['jump_net_num'])
 
     #phase = tf.placeholder(tf.bool, name='phase')
 
@@ -220,7 +226,7 @@ def create_lace_model(fingerprint_input, model_settings, phase):
             layer['l' + index + 'bn1'] = tf.contrib.layers.batch_norm(
                 layer['l' + index + 'c1'],
                 center=True, scale=True,
-                is_training=phase)
+                is_training=is_training)
             layer['l' + index + 'y1'] = tf.nn.relu(layer['l' + index + 'bn1'])
             layer['l' + index + 'c2'], w['l' + index + 'c2w'] = conv2d(
                 layer['l' + index + 'y1'],
@@ -236,7 +242,7 @@ def create_lace_model(fingerprint_input, model_settings, phase):
             layer['l' + index + 'bn2'] = tf.contrib.layers.batch_norm(
                 layer['l' + index + 'p'],
                 center=True, scale=True,
-                is_training=phase)
+                is_training=is_training)
             layer['l' + index + 'o'] = tf.nn.relu(layer['l' + index + 'bn2'])
             last_layer = layer['l' + index + 'o']
 

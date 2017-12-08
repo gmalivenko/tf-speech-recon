@@ -1,0 +1,6 @@
+[arch-parameters]
+arch = lace
+channel_size = 32
+jump_block_num = 4
+jump_net_num = 2
+
