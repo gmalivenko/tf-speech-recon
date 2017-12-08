@@ -79,7 +79,7 @@ from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 
 import input_data
-import models
+from models import *
 from tensorflow.python.platform import gfile
 
 FLAGS = None
@@ -95,7 +95,9 @@ def main(_):
   # Begin by making sure we have the training data we need. If you already have
   # training data of your own, use `--data_url= ` on the command line to avoid
   # downloading.
-  model_settings = models.prepare_model_settings(
+  graph = Graph()
+
+  model_settings = prepare_model_settings(
       len(input_data.prepare_words_list(FLAGS.wanted_words.split(','))),
       FLAGS.sample_rate, FLAGS.clip_duration_ms, FLAGS.window_size_ms,
       FLAGS.window_stride_ms, FLAGS.dct_coefficient_count, FLAGS.arch_config_file)
@@ -122,47 +124,9 @@ def main(_):
         'lists, but are %d and %d long instead' % (len(training_steps_list),
                                                    len(learning_rates_list)))
 
-  fingerprint_input = tf.placeholder(
-      tf.float32, [None, fingerprint_size], name='fingerprint_input')
+  graph.create_model(model_settings)
 
-  phase = tf.placeholder(tf.bool, name='phase')
-
-  logits, dropout_prob, layers = models.create_model(
-      fingerprint_input,
-      model_settings,
-      is_training=phase)
-
-  # print(tf.local_variables())
-  # print(tf.global_variables())
-  # exit()
-  # Define loss and optimizer
-  ground_truth_input = tf.placeholder(
-      tf.float32, [None, label_count], name='groundtruth_input')
-
-  # Optionally we can add runtime checks to spot when NaNs or other symptoms of
-  # numerical errors start occurring during training.
-  control_dependencies = []
-  if FLAGS.check_nans:
-    checks = tf.add_check_numerics_ops()
-    control_dependencies = [checks]
-
-  # Create the back propagation and training evaluation machinery in the graph.
-  with tf.name_scope('cross_entropy'):
-    cross_entropy_mean = tf.reduce_mean(
-        tf.nn.softmax_cross_entropy_with_logits(
-            labels=ground_truth_input, logits=logits))
-  tf.summary.scalar('cross_entropy', cross_entropy_mean)
-  with tf.name_scope('train'), tf.control_dependencies(control_dependencies):
-    learning_rate_input = tf.placeholder(
-        tf.float32, [], name='learning_rate_input')
-    train_step = tf.train.GradientDescentOptimizer(
-        learning_rate_input).minimize(cross_entropy_mean)
-  predicted_indices = tf.argmax(logits, 1)
-  expected_indices = tf.argmax(ground_truth_input, 1)
-  correct_prediction = tf.equal(predicted_indices, expected_indices)
-  confusion_matrix = tf.confusion_matrix(expected_indices, predicted_indices, num_classes=label_count)
-  evaluation_step = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-  tf.summary.scalar('accuracy', evaluation_step)
+  tf.summary.scalar('accuracy', graph.evaluation_step)
 
   global_step = tf.contrib.framework.get_or_create_global_step()
   increment_global_step = tf.assign(global_step, global_step + 1)
@@ -180,7 +144,7 @@ def main(_):
   start_step = 1
 
   if FLAGS.start_checkpoint:
-    models.load_variables_from_checkpoint(sess, FLAGS.start_checkpoint)
+    graph.load_variables_from_checkpoint(sess, FLAGS.start_checkpoint)
     start_step = global_step.eval(session=sess)
 
   tf.logging.info('Training from step: %d ', start_step)
@@ -210,17 +174,17 @@ def main(_):
         FLAGS.batch_size, 0, model_settings, FLAGS.background_frequency,
         FLAGS.background_volume, time_shift_samples, 'training', sess)
     # Run the graph with this batch of training data.
-    train_summary, train_accuracy, cross_entropy_value, _, _, ws_output = sess.run(
+    train_summary, train_accuracy, cross_entropy_value, _, _ = sess.run(
         [
-            merged_summaries, evaluation_step, cross_entropy_mean, train_step,
-            increment_global_step, layers['output_flat']
+            merged_summaries, graph.evaluation_step, graph.cross_entropy_mean, graph.train_step,
+            increment_global_step
         ],
         feed_dict={
-            fingerprint_input: train_fingerprints,
-            ground_truth_input: train_ground_truth,
-            learning_rate_input: learning_rate_value,
-            phase: 1,
-            dropout_prob: 0.5
+            graph.fingerprint_input: train_fingerprints,
+            graph.ground_truth_input: train_ground_truth,
+            graph.learning_rate_input: learning_rate_value,
+            graph.is_training: 1,
+            graph.dropout_prob: 0.5
         })
 
     # print(ws_output.shape)
@@ -242,12 +206,12 @@ def main(_):
         # Run a validation step and capture training summaries for TensorBoard
         # with the `merged` op.
         validation_summary, validation_accuracy, conf_matrix = sess.run(
-            [merged_summaries, evaluation_step, confusion_matrix],
+            [merged_summaries, graph.evaluation_step, graph.confusion_matrix],
             feed_dict={
-                fingerprint_input: validation_fingerprints,
-                ground_truth_input: validation_ground_truth,
-                phase: 1,
-                dropout_prob: 1.0
+                graph.fingerprint_input: validation_fingerprints,
+                graph.ground_truth_input: validation_ground_truth,
+                graph.phase: 1,
+                graph.dropout_prob: 1.0
             })
         validation_writer.add_summary(validation_summary, training_step)
         batch_size = min(FLAGS.batch_size, set_size - i)
@@ -280,12 +244,12 @@ def main(_):
         FLAGS.batch_size, i, model_settings, 0.0, 0.0, 0, 'testing', sess)
     # test_fingerprints, test_ground_truth = audio_processor.get_unprocessed_data(FLAGS.batch_size, model_settings, 'training')
     test_accuracy, conf_matrix = sess.run(
-        [evaluation_step, confusion_matrix],
+        [graph.evaluation_step, graph.confusion_matrix],
         feed_dict={
-            fingerprint_input: test_fingerprints,
-            ground_truth_input: test_ground_truth,
-            phase: 1,
-            dropout_prob: 1.0
+            graph.fingerprint_input: test_fingerprints,
+            graph.ground_truth_input: test_ground_truth,
+            graph.is_training: 1,
+            graph.dropout_prob: 1.0
         })
     batch_size = min(FLAGS.batch_size, set_size - i)
     total_accuracy += (test_accuracy * batch_size) / set_size
@@ -313,25 +277,6 @@ def main(_):
   # # print(prediction)
   # print(eval)
   # print(con_mat)
-  #
-  # test_data, ground_truth = audio_processor.get_test_data(200, 0, model_settings, 0.0, 0.0, 0, 'testing', '/work/asr2/bozheniuk/tmp/speech_dataset/left/', sess)
-  # prediction, eval, con_mat, l_out2 = sess.run(
-  #     [predicted_indices, evaluation_step, confusion_matrix, layers],
-  #     feed_dict={
-  #         fingerprint_input: test_data,
-  #         ground_truth_input: ground_truth,
-  #         phase: 1,
-  #         dropout_prob: 1.0
-  #     })
-  #
-  # # for key, value in l_out2.items():
-  # #   print(key, value.shape)
-  # # print(prediction)
-  # print(eval)
-  # print(con_mat)
-
-
-
 
 if __name__ == '__main__':
     #TODO: all parameters to config file
