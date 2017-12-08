@@ -125,12 +125,17 @@ def main(_):
   fingerprint_input = tf.placeholder(
       tf.float32, [None, fingerprint_size], name='fingerprint_input')
 
-  logits, dropout_prob = models.create_model(
+  phase = tf.placeholder(tf.bool, name='phase')
+
+  logits, dropout_prob, layers = models.create_model(
       fingerprint_input,
       model_settings,
       FLAGS.model_architecture,
-      is_training=True)
+      is_training=phase)
 
+  # print(tf.local_variables())
+  # print(tf.global_variables())
+  # exit()
   # Define loss and optimizer
   ground_truth_input = tf.placeholder(
       tf.float32, [None, label_count], name='groundtruth_input')
@@ -163,7 +168,7 @@ def main(_):
   global_step = tf.contrib.framework.get_or_create_global_step()
   increment_global_step = tf.assign(global_step, global_step + 1)
 
-  saver = tf.train.Saver(tf.global_variables())
+  saver = tf.train.Saver()
 
   # Merge all the summaries and write them out to /tmp/retrain_logs (by default)
   merged_summaries = tf.summary.merge_all()
@@ -206,17 +211,21 @@ def main(_):
         FLAGS.batch_size, 0, model_settings, FLAGS.background_frequency,
         FLAGS.background_volume, time_shift_samples, 'training', sess)
     # Run the graph with this batch of training data.
-    train_summary, train_accuracy, cross_entropy_value, _, _ = sess.run(
+    train_summary, train_accuracy, cross_entropy_value, _, _, ws_output = sess.run(
         [
             merged_summaries, evaluation_step, cross_entropy_mean, train_step,
-            increment_global_step
+            increment_global_step, layers['output_flat']
         ],
         feed_dict={
             fingerprint_input: train_fingerprints,
             ground_truth_input: train_ground_truth,
             learning_rate_input: learning_rate_value,
+            phase: 1,
             dropout_prob: 0.5
         })
+
+    # print(ws_output.shape)
+    #
     train_writer.add_summary(train_summary, training_step)
     tf.logging.info('Step #%d: rate %f, accuracy %.1f%%, cross entropy %f' %
                     (training_step, learning_rate_value, train_accuracy * 100,
@@ -237,6 +246,7 @@ def main(_):
             feed_dict={
                 fingerprint_input: validation_fingerprints,
                 ground_truth_input: validation_ground_truth,
+                phase: 1,
                 dropout_prob: 1.0
             })
         validation_writer.add_summary(validation_summary, training_step)
@@ -259,7 +269,7 @@ def main(_):
       saver.save(sess, checkpoint_path, global_step=training_step)
 
   # vrs = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='weighted_sum')
-  # print(sess.run(vrs))
+
 
   set_size = audio_processor.set_size('testing')
   tf.logging.info('set_size=%d', set_size)
@@ -274,6 +284,7 @@ def main(_):
         feed_dict={
             fingerprint_input: test_fingerprints,
             ground_truth_input: test_ground_truth,
+            phase: 1,
             dropout_prob: 1.0
         })
     batch_size = min(FLAGS.batch_size, set_size - i)
@@ -286,19 +297,38 @@ def main(_):
   tf.logging.info('Final test accuracy = %.1f%% (N=%d)' % (total_accuracy * 100,
                                                             set_size))
 
-  for i in xrange(0, 2000, FLAGS.batch_size):
-      test_data, ground_truth = audio_processor.get_test_data(200, i, model_settings, 0.0, 0.0, 0, 'testing', '/home/vitaly/PycharmProjects/tf-speech-recon/data/train/audio/left/', sess)
-      prediction, eval, con_mat = sess.run(
-          [predicted_indices, evaluation_step, confusion_matrix],
-          feed_dict={
-              fingerprint_input: test_data,
-              ground_truth_input: ground_truth,
-              dropout_prob: 1.0
-          })
+  # for i in xrange(0, 2000, FLAGS.batch_size):
+  test_data, ground_truth = audio_processor.get_test_data(100, 0, model_settings, 0.0, 0.0, 0, 'testing', '/work/asr2/bozheniuk/tmp/speech_dataset/left/', sess)
+  prediction, eval, con_mat, l_out = sess.run(
+      [predicted_indices, evaluation_step, confusion_matrix, layers],
+      feed_dict={
+          fingerprint_input: test_data,
+          ground_truth_input: ground_truth,
+          phase: 1,
+          dropout_prob: 1.0
+      })
+  #
+  # for key, value in l_out.items():
+  #   print(key, value.shape)
+  # print(prediction)
+  print(eval)
+  print(con_mat)
 
-      # print(prediction)
-      print(eval)
-      print(con_mat)
+  test_data, ground_truth = audio_processor.get_test_data(200, 0, model_settings, 0.0, 0.0, 0, 'testing', '/work/asr2/bozheniuk/tmp/speech_dataset/left/', sess)
+  prediction, eval, con_mat, l_out2 = sess.run(
+      [predicted_indices, evaluation_step, confusion_matrix, layers],
+      feed_dict={
+          fingerprint_input: test_data,
+          ground_truth_input: ground_truth,
+          phase: 1,
+          dropout_prob: 1.0
+      })
+
+  # for key, value in l_out2.items():
+  #   print(key, value.shape)
+  # print(prediction)
+  print(eval)
+  print(con_mat)
 
 
 
@@ -316,7 +346,7 @@ if __name__ == '__main__':
       '--data_dir',
       type=str,
       # default='/tmp/speech_dataset/',
-      default='./data/train/audio/',
+      default='/work/asr2/bozheniuk/tmp/speech_dataset',
       help="""\
       Where to download the speech training data to.
       """)
@@ -393,7 +423,7 @@ if __name__ == '__main__':
   parser.add_argument(
       '--how_many_training_steps',
       type=str,
-      default='4000,1000',
+      default='20000,5000, 5000',
       help='How many training loops to run',)
   parser.add_argument(
       '--eval_step_interval',
@@ -403,17 +433,17 @@ if __name__ == '__main__':
   parser.add_argument(
       '--learning_rate',
       type=str,
-      default='0.001,0.0001',
+      default='0.001,0.0001,0.00001',
       help='How large a learning rate to use when training.')
   parser.add_argument(
       '--batch_size',
       type=int,
-      default=10,
+      default=200,
       help='How many items to train with at once',)
   parser.add_argument(
       '--summaries_dir',
       type=str,
-      default='/tmp/retrain_logs',
+      default='/work/asr2/bozheniuk/tmp/retrain_logs',
       help='Where to save summary logs for TensorBoard.')
   parser.add_argument(
       '--wanted_words',
@@ -423,7 +453,7 @@ if __name__ == '__main__':
   parser.add_argument(
       '--train_dir',
       type=str,
-      default='/tmp/speech_commands_train',
+      default='/work/asr2/bozheniuk/tmp/speech_commands_train',
       help='Directory to write event logs and checkpoint.')
   parser.add_argument(
       '--save_step_interval',
@@ -433,13 +463,13 @@ if __name__ == '__main__':
   parser.add_argument(
       '--start_checkpoint',
       type=str,
-      # default='/home/vitaly/competition/graph/lace_32/lace.ckpt-18000',
-      default='',
+      default='/work/asr2/bozheniuk/tmp/speech_commands_train/lace_128ch/lace.ckpt-5000',
+      #default='',
       help='If specified, restore this pretrained model before any training.')
   parser.add_argument(
       '--model_architecture',
       type=str,
-      default='low_latency_svdf',
+      default='lace',
       help='What model architecture to use')
   parser.add_argument(
       '--check_nans',
