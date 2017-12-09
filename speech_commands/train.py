@@ -101,11 +101,15 @@ def main(_):
       len(input_data.prepare_words_list(FLAGS.wanted_words.split(','))),
       FLAGS.sample_rate, FLAGS.clip_duration_ms, FLAGS.window_size_ms,
       FLAGS.window_stride_ms, FLAGS.dct_coefficient_count, FLAGS.arch_config_file)
+
   audio_processor = input_data.AudioProcessor(
       FLAGS.data_url, FLAGS.data_dir, FLAGS.silence_percentage,
       FLAGS.unknown_percentage,
       FLAGS.wanted_words.split(','), FLAGS.validation_percentage,
       FLAGS.testing_percentage, model_settings)
+
+  model_settings['noise_label_count'] = audio_processor.background_label_count() + 1
+
   fingerprint_size = model_settings['fingerprint_size']
   label_count = model_settings['label_count']
   time_shift_samples = int((FLAGS.time_shift_ms * FLAGS.sample_rate) / 1000)
@@ -170,7 +174,7 @@ def main(_):
         learning_rate_value = learning_rates_list[i]
         break
     # Pull the audio samples we'll use for training.
-    train_fingerprints, train_ground_truth = audio_processor.get_data(
+    train_fingerprints, train_ground_truth, train_noise_labels = audio_processor.get_data(
         FLAGS.batch_size, 0, model_settings, FLAGS.background_frequency,
         FLAGS.background_volume, time_shift_samples, 'training', sess)
     # Run the graph with this batch of training data.
@@ -187,12 +191,32 @@ def main(_):
             graph.dropout_prob: 0.5
         })
 
+    tf.logging.info('Main Step #%d: rate %f, accuracy %.1f%%, cross entropy %f' %
+                    (training_step, learning_rate_value, train_accuracy * 100,
+                     cross_entropy_value))
+
+    if graph.is_adversarial:
+        adv_train_accuracy, adv_cross_entropy_value, _ = sess.run(
+            [
+                graph.adv_evaluation_step, graph.adv_cross_entropy_mean, graph.adv_train_step
+            ],
+            feed_dict={
+                graph.fingerprint_input: train_fingerprints,
+                graph.noise_labels: train_noise_labels,
+                graph.adv_learning_rate_input: learning_rate_value,
+                graph.is_training: 1,
+                graph.dropout_prob: 0.5
+            })
+        tf.logging.info('Adversarial Step #%d: rate %f, accuracy %.1f%%, cross entropy %f' %
+                    (training_step, learning_rate_value, adv_train_accuracy * 100,
+                     adv_cross_entropy_value))
+
+
+
     # print(ws_output.shape)
     #
     train_writer.add_summary(train_summary, training_step)
-    tf.logging.info('Step #%d: rate %f, accuracy %.1f%%, cross entropy %f' %
-                    (training_step, learning_rate_value, train_accuracy * 100,
-                     cross_entropy_value))
+
     is_last_step = (training_step == training_steps_max)
     if (training_step % FLAGS.eval_step_interval) == 0 or is_last_step:
       set_size = audio_processor.set_size('validation')
@@ -200,7 +224,7 @@ def main(_):
       total_conf_matrix = None
       for i in xrange(0, set_size, FLAGS.batch_size):
       # print(i, set_size)
-        validation_fingerprints, validation_ground_truth = (
+        validation_fingerprints, validation_ground_truth, noise_labels = (
             audio_processor.get_data(FLAGS.batch_size, i, model_settings, 0.0,
                                      0.0, 0, 'validation', sess))
         # Run a validation step and capture training summaries for TensorBoard
@@ -210,7 +234,7 @@ def main(_):
             feed_dict={
                 graph.fingerprint_input: validation_fingerprints,
                 graph.ground_truth_input: validation_ground_truth,
-                graph.phase: 1,
+                graph.is_training: 1,
                 graph.dropout_prob: 1.0
             })
         validation_writer.add_summary(validation_summary, training_step)
@@ -240,7 +264,7 @@ def main(_):
   total_accuracy = 0
   total_conf_matrix = None
   for i in xrange(0, set_size, FLAGS.batch_size):
-    test_fingerprints, test_ground_truth = audio_processor.get_data(
+    test_fingerprints, test_ground_truth, noise_labels = audio_processor.get_data(
         FLAGS.batch_size, i, model_settings, 0.0, 0.0, 0, 'testing', sess)
     # test_fingerprints, test_ground_truth = audio_processor.get_unprocessed_data(FLAGS.batch_size, model_settings, 'training')
     test_accuracy, conf_matrix = sess.run(
@@ -299,14 +323,14 @@ if __name__ == '__main__':
     parser.add_argument(
         '--background_volume',
         type=float,
-        default=0.1,
+        default=0.5,
         help="""\
         How loud the background noise should be, between 0 and 1.
         """)
     parser.add_argument(
         '--background_frequency',
         type=float,
-        default=0.8,
+        default=0.9,
         help="""\
         How many of the training samples have background noise mixed in.
         """)
@@ -369,12 +393,12 @@ if __name__ == '__main__':
     parser.add_argument(
         '--how_many_training_steps',
         type=str,
-        default='5000, 1000',
+        default='4000, 1000',
         help='How many training loops to run',)
     parser.add_argument(
         '--eval_step_interval',
         type=int,
-        default=400,
+        default=200,
         help='How often to evaluate the training results.')
     parser.add_argument(
         '--learning_rate',
@@ -415,7 +439,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--model_architecture',
         type=str,
-        default='lace',
+        default='',
         help='What model architecture to use')
     parser.add_argument(
         '--arch_config_file',
