@@ -1,6 +1,6 @@
 [arch-parameters]
-arch = lace
-is_adversarial = 0
+arch = adversarial_lace
+is_adversarial = 1
 channel_size = 32
 jump_block_num = 4
 jump_net_num = 2

@@ -106,12 +106,16 @@ class Graph(object):
 
       model_architecture = parser['arch-parameters']['arch']
 
+      self.parser = parser
+
       if model_architecture == 'single_fc':
         return self.create_single_fc_model(model_settings)
       elif model_architecture == 'conv':
         return self.create_conv_model(model_settings)
       elif model_architecture == 'lace':
         return self.create_lace_model(model_settings, parser)
+      elif model_architecture == 'adversarial_lace':
+        return self.create_adversarial_lace_model(model_settings, parser)
       elif model_architecture == 'lace_no_batch_norm':
         return self.create_lace_no_batch_norm_model(model_settings)
       elif model_architecture == 'low_latency_conv':
@@ -133,6 +137,10 @@ class Graph(object):
       """
       saver = tf.train.Saver()
       saver.restore(sess, start_checkpoint)
+
+
+    def is_adversarial(self):
+        return bool(self.parser['arch-parameters']['is_adversarial'])
 
 
     def create_single_fc_model(self, model_settings):
@@ -280,15 +288,20 @@ class Graph(object):
 
         # Create the back propagation and training evaluation machinery in the graph.
         with tf.name_scope('cross_entropy'):
-            cross_entropy_mean = tf.reduce_mean(
+            self.cross_entropy_mean = tf.reduce_mean(
                 tf.nn.softmax_cross_entropy_with_logits(
                     labels=self.ground_truth_input, logits=self.final_fc))
-        tf.summary.scalar('cross_entropy', cross_entropy_mean)
+        tf.summary.scalar('cross_entropy', self.cross_entropy_mean)
         with tf.name_scope('train'), tf.control_dependencies(control_dependencies):
             self.learning_rate_input = tf.placeholder(
                 tf.float32, [], name='learning_rate_input')
-            self.train_step = tf.train.GradientDescentOptimizer(
-                self.learning_rate_input).minimize(cross_entropy_mean)
+            self.optimizer = tf.train.GradientDescentOptimizer(
+                self.learning_rate_input)
+
+            self.grads_and_vars = self.optimizer.compute_gradients(self.cross_entropy_mean)
+
+            self.train_step = self.optimizer.apply_gradients(self.grads_and_vars)
+            # self.train_step = self.optimizer.minimize(self.cross_entropy_mean)
 
         self.predicted_indices = tf.argmax(self.final_fc, 1)
         self.expected_indices = tf.argmax(self.ground_truth_input, 1)
@@ -296,8 +309,170 @@ class Graph(object):
         self.confusion_matrix = tf.confusion_matrix(self.expected_indices, self.predicted_indices, num_classes=label_count)
         self.evaluation_step = tf.reduce_mean(tf.cast(self.correct_prediction, tf.float32))
         return
-        # return final_fc, dropout_prob, layer
 
+    def create_adversarial_lace_model(self, model_settings, parser):
+        input_frequency_size = model_settings['dct_coefficient_count']
+        input_time_size = model_settings['spectrogram_length']
+
+        fingerprint_size = model_settings['fingerprint_size']
+        self.fingerprint_input = tf.placeholder(
+            tf.float32, [None, fingerprint_size], name='fingerprint_input')
+
+        self.fingerprint_4d = tf.reshape(self.fingerprint_input,
+                                    [-1, input_time_size, input_frequency_size, 1])
+
+        self.is_training = tf.placeholder(tf.bool, name='is_training')
+        self.dropout_prob = tf.placeholder(tf.float32, name='dropout_prob')
+
+        self.w = {}
+        self.layer = {}
+
+        self.initializer = tf.truncated_normal_initializer(0, 0.02)
+        activation_fn = tf.nn.relu
+
+        channel_start = int(parser['arch-parameters']['channel_size'])
+        jump_block_num = int(parser['arch-parameters']['jump_block_num'])
+        jump_net_num = int(parser['arch-parameters']['jump_net_num'])
+
+        self.layer['output_0'] = self.fingerprint_4d
+
+        current_channel_num = channel_start
+
+        with tf.variable_scope('main_graph'):
+            for i in range(jump_block_num):
+                self.layer['l_' + str(i + 1) + '_0_o'], \
+                self.w['l_' + str(i + 1) + '_0_ow'] = conv2d(
+                    self.layer['output_' + str(i)],
+                    current_channel_num, [3, 3], [2, 2],
+                    self.initializer,
+                    activation_fn=None,
+                    padding='SAME',
+                    name='l_' + str(i + 1) + '_c0')
+                # print(tf.shape(w['l_' + str(i + 1) + '_0_o']))
+
+                for j in range(jump_net_num):
+                    index = '_' + str(i + 1) + '_' + str(j + 1) + '_'
+                    prev_output = 'l_' + str(i + 1) + '_' + str(j) + '_o'
+
+                    self.layer['l' + index + 'c1'], self.w['l' + index + 'c1w'] = conv2d(
+                        self.layer[prev_output],
+                        current_channel_num,
+                        [3, 3], [1, 1],
+                        self.initializer,
+                        activation_fn=None,
+                        padding='SAME',
+                        name='l' + index + 'c1')
+                    self.layer['l' + index + 'bn1'] = tf.contrib.layers.batch_norm(
+                        self.layer['l' + index + 'c1'],
+                        center=True, scale=True,
+                        is_training=self.is_training)
+                    self.layer['l' + index + 'y1'] = tf.nn.relu(self.layer['l' + index + 'bn1'])
+                    self.layer['l' + index + 'c2'], self.w['l' + index + 'c2w'] = conv2d(
+                        self.layer['l' + index + 'y1'],
+                        current_channel_num,
+                        [3, 3], [1, 1],
+                        self.initializer,
+                        activation_fn=None,
+                        padding='SAME',
+                        name='l' + index + 'c2')
+                    self.layer['l' + index + 'p'] = tf.add(
+                        self.layer['l' + index + 'c2'],
+                        self.layer[prev_output])
+                    self.layer['l' + index + 'bn2'] = tf.contrib.layers.batch_norm(
+                        self.layer['l' + index + 'p'],
+                        center=True, scale=True,
+                        is_training=self.is_training)
+                    self.layer['l' + index + 'o'] = tf.nn.relu(self.layer['l' + index + 'bn2'])
+                    last_layer = self.layer['l' + index + 'o']
+
+                self.layer['output_' + str(i + 1)], self.w['output_' + str(i + 1)] = elementwise_mat_prod(
+                    last_layer,
+                    name='elementwise_' + str(i + 1))
+                last_layer = self.layer['output_' + str(i + 1)]
+
+                current_channel_num *= 2
+
+            self.layer['output'], self.w['output'] = weighted_sum(last_layer)
+            self.layer['output_flat'] = tf.squeeze(self.layer['output'], [1, 2, 4])
+
+        with tf.variable_scope('target_subnet'):
+            label_count = model_settings['label_count']
+            self.layer['size_mapping'], self.w['size_mapping_w'], self.w['size_mapping_b'] = linear(
+                self.layer['output_flat'],
+                label_count,
+                name='linear_mapping')
+
+            self.final_fc = self.layer['size_mapping']
+
+            self.ground_truth_input = tf.placeholder(
+                tf.float32, [None, label_count], name='groundtruth_input')
+
+            control_dependencies = []
+            # checks = tf.add_check_numerics_ops()
+            # control_dependencies = [checks]
+
+            # Create the back propagation and training evaluation machinery in the graph.
+            with tf.name_scope('cross_entropy'):
+                self.cross_entropy_mean = tf.reduce_mean(
+                    tf.nn.softmax_cross_entropy_with_logits(
+                        labels=self.ground_truth_input, logits=self.final_fc))
+            tf.summary.scalar('cross_entropy', self.cross_entropy_mean)
+            with tf.name_scope('train'), tf.control_dependencies(control_dependencies):
+                self.learning_rate_input = tf.placeholder(
+                    tf.float32, [], name='learning_rate_input')
+                self.optimizer = tf.train.GradientDescentOptimizer(
+                    self.learning_rate_input)
+
+                # grads_and_vars = self.optimizer.compute_gradients(self.cross_entropy_mean)
+                #
+                # self.train_step = self.optimizer.apply_gradients(grads_and_vars)
+                self.train_step = self.optimizer.minimize(self.cross_entropy_mean)
+
+            self.predicted_indices = tf.argmax(self.final_fc, 1)
+            self.expected_indices = tf.argmax(self.ground_truth_input, 1)
+            self.correct_prediction = tf.equal(self.predicted_indices, self.expected_indices)
+            self.confusion_matrix = tf.confusion_matrix(self.expected_indices, self.predicted_indices, num_classes=label_count)
+            self.evaluation_step = tf.reduce_mean(tf.cast(self.correct_prediction, tf.float32))
+
+        with tf.variable_scope('adversarial'):
+            #gradient reversal layer
+            # https://stackoverflow.com/questions/36456436/how-can-i-define-only-the-gradient-for-a-tensorflow-subgraph
+            # Suppose you want group of ops that behave as f(x) in forward mode, but as g(x) in the backward mode.
+            # t = g(x)
+            # y = t + tf.stop_gradient(f(x) - t)
+            self.adv_lamda = 0.1
+            grl_back = -self.adv_lamda * self.layer['output_flat']
+            grl_forward = grl_back + tf.stop_gradient(self.layer['output_flat'] - grl_back)
+
+            noise_label_count = model_settings['noise_label_count']
+            self.layer['adv_output'], self.w['adv_w'], self.w['adv_b'] = linear(
+                grl_forward,
+                noise_label_count,
+                name='adversarial_linear_mapping')
+
+            self.noise_labels = tf.placeholder(
+                tf.float32, [None, noise_label_count], name='adversarial_groundtruth_input')
+
+            with tf.name_scope('cross_entropy'):
+                self.adv_cross_entropy_mean = tf.reduce_mean(
+                    tf.nn.softmax_cross_entropy_with_logits(
+                        labels=self.noise_labels, logits=self.layer['adv_output']))
+
+            with tf.name_scope('train'):
+                self.adv_learning_rate_input = tf.placeholder(
+                    tf.float32, [], name='adv_learning_rate_input')
+                self.adv_optimizer = tf.train.GradientDescentOptimizer(
+                    self.adv_learning_rate_input)
+                self.adv_train_step = self.adv_optimizer.minimize(self.adv_cross_entropy_mean)
+
+            self.adv_predicted_indices = tf.argmax(self.layer['adv_output'], 1)
+            self.adv_expected_indices = tf.argmax(self.noise_labels, 1)
+            self.adv_correct_prediction = tf.equal(self.adv_predicted_indices, self.adv_expected_indices)
+            self.adv_confusion_matrix = tf.confusion_matrix(self.adv_expected_indices, self.adv_predicted_indices,
+                                                        num_classes=noise_label_count)
+            self.adv_evaluation_step = tf.reduce_mean(tf.cast(self.adv_correct_prediction, tf.float32))
+
+        return
 
     def create_lace_no_batch_norm_model(self, fingerprint_input, model_settings, is_training):
         input_frequency_size = model_settings['dct_coefficient_count']
@@ -520,6 +695,8 @@ class Graph(object):
       # else:
       #   return final_fc
       return
+
+
 
 
     def create_low_latency_conv_model(self, fingerprint_input, model_settings,

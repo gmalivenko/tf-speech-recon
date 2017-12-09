@@ -330,12 +330,16 @@ class AudioProcessor(object):
       search_path = os.path.join(self.data_dir, BACKGROUND_NOISE_DIR_NAME,
                                  '*.wav')
       for wav_path in gfile.Glob(search_path):
+        print(wav_path)
         wav_data = sess.run(
             wav_decoder,
             feed_dict={wav_filename_placeholder: wav_path}).audio.flatten()
         self.background_data.append(wav_data)
       if not self.background_data:
         raise Exception('No background wav files were found in ' + search_path)
+
+  def background_label_count(self):
+      return len(self.background_data)
 
   def prepare_processing_graph(self, model_settings):
     """Builds a TensorFlow graph to apply the input distortions.
@@ -442,6 +446,7 @@ class AudioProcessor(object):
     # Data and labels will be populated and returned.
     data = np.zeros((sample_count, model_settings['fingerprint_size']))
     labels = np.zeros((sample_count, model_settings['label_count']))
+    noise_labels = np.zeros((sample_count, self.background_label_count() + 1))
     desired_samples = model_settings['desired_samples']
     use_background = self.background_data and (mode == 'training')
     pick_deterministically = (mode != 'training')
@@ -480,9 +485,11 @@ class AudioProcessor(object):
             background_offset + desired_samples)]
         background_reshaped = background_clipped.reshape([desired_samples, 1])
         if np.random.uniform(0, 1) < background_frequency:
-          background_volume = np.random.uniform(0, background_volume_range)
+          background_volume = np.random.uniform(0.3, background_volume_range)
+          noise_labels[i - offset, background_index] = 1
         else:
           background_volume = 0
+          noise_labels[i - offset, -1] = 1
       else:
         background_reshaped = np.zeros([desired_samples, 1])
         background_volume = 0
@@ -497,7 +504,7 @@ class AudioProcessor(object):
       data[i - offset, :] = sess.run(self.mfcc_, feed_dict=input_dict).flatten()
       label_index = self.word_to_index[sample['label']]
       labels[i - offset, label_index] = 1
-    return data, labels
+    return data, labels, noise_labels
 
 
   def get_test_data(self, how_many, offset, model_settings, background_frequency,
