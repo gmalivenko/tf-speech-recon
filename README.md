@@ -3,7 +3,7 @@ Speech recognition Kaggle repo
 
 Some ideas:
 
-1. sec-to-sec attention
+1. seq2seq attention
 2. feature combination (raw + STFT + MFCC)
 3. adversarial learning
 4. depth-wise convolution
