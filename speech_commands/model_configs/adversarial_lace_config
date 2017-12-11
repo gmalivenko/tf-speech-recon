@@ -1,6 +1,7 @@
 [arch-parameters]
 arch = adversarial_lace
 is_adversarial = 1
+noise_labels = 11
 channel_size = 32
 jump_block_num = 4
 jump_net_num = 2

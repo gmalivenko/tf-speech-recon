@@ -444,7 +444,7 @@ class Graph(object):
             grl_back = -self.adv_lamda * self.layer['output_flat']
             grl_forward = grl_back + tf.stop_gradient(self.layer['output_flat'] - grl_back)
 
-            noise_label_count = model_settings['noise_label_count']
+            noise_label_count = int(parser['arch-parameters']['noise_labels'])
             self.layer['adv_output'], self.w['adv_w'], self.w['adv_b'] = linear(
                 grl_forward,
                 noise_label_count,
@@ -471,6 +471,29 @@ class Graph(object):
             self.adv_confusion_matrix = tf.confusion_matrix(self.adv_expected_indices, self.adv_predicted_indices,
                                                         num_classes=noise_label_count)
             self.adv_evaluation_step = tf.reduce_mean(tf.cast(self.adv_correct_prediction, tf.float32))
+
+        return
+
+
+    def create_mobilenet_model(self, model_settings, parser):
+        input_frequency_size = model_settings['dct_coefficient_count']
+        input_time_size = model_settings['spectrogram_length']
+
+        fingerprint_size = model_settings['fingerprint_size']
+        self.fingerprint_input = tf.placeholder(
+            tf.float32, [None, fingerprint_size], name='fingerprint_input')
+
+        self.fingerprint_4d = tf.reshape(self.fingerprint_input,
+                                    [-1, input_time_size, input_frequency_size, 1])
+
+        self.is_training = tf.placeholder(tf.bool, name='is_training')
+        self.dropout_prob = tf.placeholder(tf.float32, name='dropout_prob')
+
+        self.w = {}
+        self.layer = {}
+
+
+
 
         return
 
