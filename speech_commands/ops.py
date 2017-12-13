@@ -88,3 +88,18 @@ def weighted_sum(input_, data_format='NDHWC', padding='VALID', name='weighted_su
     return out, w
 
 
+def depthwise_separable_conv(input_, is_training, data_format='NDHWC', padding='VALID', name='dws_conv'):
+    shape = input_.get_shape().as_list()
+
+    with tf.variable_scope(name):
+        initializer = tf.contrib.layers.xavier_initializer()
+        input_expanded = tf.expand_dims(input_, axis=-1)  # [batch, height,  width, channels, 1]
+        stride = [1, 1, 1, 1, 1]
+        kernel_shape = [3, 3, 1, 1, 1]
+
+        w = tf.get_variable('w', kernel_shape, tf.float32, initializer=initializer)
+        out = tf.nn.conv3d(input_expanded, w, stride, padding=padding, data_format=data_format)
+
+
+    return w, out
+
