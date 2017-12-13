@@ -474,6 +474,30 @@ class Graph(object):
 
         return
 
+    def create_mobile_cnn(self, model_settings, parser):
+        input_frequency_size = model_settings['dct_coefficient_count']
+        input_time_size = model_settings['spectrogram_length']
+
+        fingerprint_size = model_settings['fingerprint_size']
+        self.fingerprint_input = tf.placeholder(
+            tf.float32, [None, fingerprint_size], name='fingerprint_input')
+
+        self.fingerprint_4d = tf.reshape(self.fingerprint_input,
+                                    [-1, input_time_size, input_frequency_size, 1])
+
+        self.is_training = tf.placeholder(tf.bool, name='is_training')
+        self.dropout_prob = tf.placeholder(tf.float32, name='dropout_prob')
+
+        self.w = {}
+        self.layer = {}
+
+        self.initializer = tf.truncated_normal_initializer(0, 0.02)
+        activation_fn = tf.nn.relu
+
+        channel_start = int(parser['arch-parameters']['channel_size'])
+
+        return
+
     def create_lace_no_batch_norm_model(self, fingerprint_input, model_settings, is_training):
         input_frequency_size = model_settings['dct_coefficient_count']
         input_time_size = model_settings['spectrogram_length']

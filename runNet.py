@@ -13,7 +13,7 @@ import tensorflow as tf
 
 import input_data
 import submission_processor
-import models
+from models import *
 from tensorflow.python.platform import gfile
 
 FLAGS = None
@@ -31,51 +31,43 @@ def main(_):
   # Start a new TensorFlow session.
   sess = tf.InteractiveSession()
 
-  model_settings = models.prepare_model_settings(
+  graph = Graph()
+
+  model_settings = prepare_model_settings(
       len(input_data.prepare_words_list(FLAGS.wanted_words.split(','))),
       FLAGS.sample_rate, FLAGS.clip_duration_ms, FLAGS.window_size_ms,
-      FLAGS.window_stride_ms, FLAGS.dct_coefficient_count)
+      FLAGS.window_stride_ms, FLAGS.dct_coefficient_count, FLAGS.arch_config_file)
   audio_processor = submission_processor.SubmissionProcessor(FLAGS)
-  fingerprint_size = model_settings['fingerprint_size']
 
-  fingerprint_input = tf.placeholder(
-      tf.float32, [None, fingerprint_size], name='fingerprint_input')
+  model_settings['noise_label_count'] = 11
 
-  logits, dropout_prob, layers = models.create_model(fingerprint_input, model_settings, FLAGS.model_architecture, is_training=False)
-  classification = tf.nn.softmax(logits)
-
-  predicted_indices = tf.argmax(classification, axis=-1)
-
+  graph.create_model(model_settings)
   tf.global_variables_initializer().run()
+  graph.load_variables_from_checkpoint(sess, FLAGS.start_checkpoint)
 
-  models.load_variables_from_checkpoint(sess, FLAGS.start_checkpoint)
-  # global_step = tf.contrib.framework.get_or_create_global_step()
-  # start_step = global_step.eval(session=sess)
   path_to_labels = FLAGS.labels
-
-  # vrs = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='weighted_sum')
-  # print(sess.run(vrs))
+  labels = np.array(load_labels(path_to_labels))
 
   indices = []
-  for i in xrange(0, 158538, FLAGS.batch_size):
-    print(i)
+  sample_num = 158538
+  for i in xrange(0, sample_num, FLAGS.batch_size):
+    tf.logging.info('Progress: %.1f%%', float(100 * i)/float(sample_num))
     test_fingerprints = audio_processor.get_test_data(FLAGS.batch_size, i, model_settings, sess)
-    #print (test_fingerprints)
-    batch_indices, logits_ = sess.run([predicted_indices, classification], feed_dict={fingerprint_input: test_fingerprints})
-    print(logits_)
-    indices.extend(batch_indices)
-
-  labels = load_labels(path_to_labels)
-  human_string = []
-  for i in indices:
-      human_string.append(labels[i])
-  print(human_string)
-  audio_processor.write_to_csv(human_string)
+    batch_indices = sess.run([graph.predicted_indices], feed_dict={graph.fingerprint_input: test_fingerprints,
+                                                                   graph.is_training: True})
+    # print(logits_)
+    # indices.extend(batch_indices)
+    audio_processor.write_to_csv(labels[batch_indices], i)
+  #
+  # human_string = []
+  # for i in indices:
+  #     human_string.append(labels[i])
+  # audio_processor.write_to_csv(human_string)
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()
   parser.add_argument(
-      '--labels', type=str, default='lace_labels.txt', help='Path to file containing labels.')
+      '--labels', type=str, default='labels.txt', help='Path to file containing labels.')
   parser.add_argument(
       '--data_url',
       type=str,
@@ -178,7 +170,7 @@ if __name__ == '__main__':
   parser.add_argument(
       '--batch_size',
       type=int,
-      default=1,
+      default=100,
       help='How many items to train with at once',)
   parser.add_argument(
       '--summaries_dir',
@@ -211,10 +203,15 @@ if __name__ == '__main__':
       default='lace',
       help='What model architecture to use')
   parser.add_argument(
+      '--arch_config_file',
+      type=str,
+      default='',
+      help='File containing model parameters')
+  parser.add_argument(
       '--check_nans',
       type=bool,
       default=False,
       help='Whether to check for invalid numbers during processing')
 
   FLAGS, unparsed = parser.parse_known_args()
-  tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)
+tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)

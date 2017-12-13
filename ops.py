@@ -74,9 +74,9 @@ def weighted_sum(input_, data_format='NDHWC', padding='VALID', name='weighted_su
     #tesing: ignore kernel_size and derive it from the input shape
 
     with tf.variable_scope(name):
-        stride = [1, 1, 1, 1, 1]
         # kernel_shape = [kernel_size[0], kernel_size[1], input_.get_shape()[-1], 1]
         kernel_shape = [shape[1], shape[2], 1, 1, 1]
+        stride = [1, 1, 1, 1, 1]
         initializer = tf.constant_initializer(1.0 / (shape[1] * shape[2]))
 
         input_expanded = tf.expand_dims(input_, axis=-1) # [batch, height,  width, channels, 1]
@@ -87,4 +87,31 @@ def weighted_sum(input_, data_format='NDHWC', padding='VALID', name='weighted_su
 
     return out, w
 
+
+def depthwise_separable_conv(input_, output_size, is_training, kernel=(3, 3), stride=(1, 1), data_format='NDHWC', padding='VALID', name='weighted_sum'):
+    shape = input_.get_shape().as_list()
+
+    with tf.variable_scope(name):
+        # kernel_shape = [kernel_size[0], kernel_size[1], input_.get_shape()[-1], 1]
+        kernel_shape = [kernel[0], kernel[1], shape[-1], 1]
+        stride_shape = [1, stride[0], stride[1], 1]
+
+        initializer = tf.contrib.layers.xavier_initializer()
+        filter_dw = tf.get_variable('filter_dw', kernel_shape, tf.float32, initializer=initializer)
+
+        depthwise_conv = tf.nn.depthwise_conv2d(input_, filter_dw, stride_shape, padding=padding)
+        batch_norm_1 = tf.layers.batch_normalization(depthwise_conv, training=is_training)
+        relu_1 = tf.nn.relu(batch_norm_1)
+
+        pointwise_kernel_shape = [1, 1, shape[-1], output_size]
+        pointwise_stride_shape = [1, 1, 1, 1]
+
+        filter_pw = tf.get_variable('filter_pw', pointwise_kernel_shape, tf.float32, initializer=initializer)
+
+        pointwise_conv = tf.nn.conv2d(relu_1, filter_pw, pointwise_stride_shape, padding=padding)
+        batch_norm_2 = tf.layers.batch_normalization(pointwise_conv, training=is_training)
+        relu_2 = tf.nn.relu(batch_norm_2)
+        out = relu_2
+
+    return out, filter_dw, filter_pw
 
