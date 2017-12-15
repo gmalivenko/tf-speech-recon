@@ -29,7 +29,7 @@ import tensorflow as tf
 
 def prepare_model_settings(label_count, sample_rate, clip_duration_ms,
                            window_size_ms, window_stride_ms,
-                           dct_coefficient_count, arch_conf_file):
+                           dct_coefficient_count, arch_conf_file, features, fft_window_size):
     """Calculates common settings needed for all models.
 
     Args:
@@ -51,7 +51,14 @@ def prepare_model_settings(label_count, sample_rate, clip_duration_ms,
         spectrogram_length = 0
     else:
         spectrogram_length = 1 + int(length_minus_window / window_stride_samples)
-    fingerprint_size = dct_coefficient_count * spectrogram_length
+
+    if features == 'raw':
+      fingerprint_size = sample_rate
+    elif features == 'spectrogram':
+      fingerprint_size = spectrogram_length * fft_window_size
+    else:
+      fingerprint_size = dct_coefficient_count * spectrogram_length
+
     return {
         'desired_samples': desired_samples,
         'window_size_samples': window_size_samples,
