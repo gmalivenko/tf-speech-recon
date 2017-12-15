@@ -104,32 +104,35 @@ class Graph(object):
       parser = configparser.ConfigParser()
       parser.read(configFilePath)
 
-      # model_architecture = parser['arch-parameters']['arch']
-      model_architecture = 'mobile_cnn'
+      self.model_architecture = parser['arch-parameters']['arch']
+      # model_architecture = 'mobile_cnn'
 
       self.parser = parser
 
-      if model_architecture == 'single_fc':
+      if self.model_architecture == 'single_fc':
         return self.create_single_fc_model(model_settings)
-      elif model_architecture == 'conv':
+      elif self.model_architecture == 'conv':
         return self.create_conv_model(model_settings)
-      elif model_architecture == 'lace':
+      elif self.model_architecture == 'lace':
         return self.create_lace_model(model_settings, parser)
-      elif model_architecture == 'adversarial_lace':
+      elif self.model_architecture == 'adversarial_lace':
         return self.create_adversarial_lace_model(model_settings, parser)
-      elif model_architecture == 'lace_no_batch_norm':
+      elif self.model_architecture == 'lace_no_batch_norm':
         return self.create_lace_no_batch_norm_model(model_settings)
-      elif model_architecture == 'mobile_cnn':
+      elif self.model_architecture == 'mobile_cnn':
         return self.create_mobile_cnn(model_settings, parser)
-      elif model_architecture == 'low_latency_conv':
+      elif self.model_architecture == 'low_latency_conv':
         return self.create_low_latency_conv_model(model_settings)
-      elif model_architecture == 'low_latency_svdf':
+      elif self.model_architecture == 'low_latency_svdf':
         return self.create_low_latency_svdf_model(model_settings, runtime_settings)
       else:
-        raise Exception('model_architecture argument "' + model_architecture +
+        raise Exception('model_architecture argument "' + self.model_architecture +
                         '" not recognized, should be one of "single_fc", "conv",' +
                         ' "low_latency_conv, or "low_latency_svdf"')
 
+
+    def get_arch_name(self):
+      return self.model_architecture
 
     def load_variables_from_checkpoint(self, sess, start_checkpoint):
       """Utility function to centralize checkpoint restoration.

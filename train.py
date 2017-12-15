@@ -153,8 +153,10 @@ def main(_):
 
   tf.logging.info('Training from step: %d ', start_step)
 
+  FLAGS.model_architecture = graph.get_arch_name()
+
   # Save graph.pbtxt.
-  tf.train.write_graph(sess.graph_def, FLAGS.train_dir,
+  tf.train.write_graph(sess.graph_def, FLAGS.checkpoint_dir,
                        FLAGS.model_architecture + '.pbtxt')
 
   # Save list of words.
@@ -251,7 +253,7 @@ def main(_):
     # Save the model checkpoint periodically.
     if (training_step % FLAGS.save_step_interval == 0 or
         training_step == training_steps_max):
-      checkpoint_path = os.path.join(FLAGS.train_dir,
+      checkpoint_path = os.path.join(FLAGS.checkpoint_dir,
                                      FLAGS.model_architecture + '.ckpt')
       tf.logging.info('Saving to "%s-%d"', checkpoint_path, training_step)
       saver.save(sess, checkpoint_path, global_step=training_step)
@@ -421,7 +423,7 @@ if __name__ == '__main__':
         default='yes,no,up,down,left,right,on,off,stop,go',
         help='Words to use (others will be added to an unknown label)',)
     parser.add_argument(
-        '--train_dir',
+        '--checkpoint_dir',
         type=str,
         default='/tmp/speech_commands_train',
         help='Directory to write event logs and checkpoint.')
@@ -439,7 +441,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--model_architecture',
         type=str,
-        default='mobile_cnn',
+        default='mobile',
         help='What model architecture to use')
     parser.add_argument(
         '--arch_config_file',
