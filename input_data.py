@@ -388,9 +388,9 @@ class AudioProcessor(object):
     background_mul = tf.multiply(self.background_data_placeholder_,
                                  self.background_volume_placeholder_)
     background_add = tf.add(background_mul, sliced_foreground)
-    background_clamp = tf.clip_by_value(background_add, -1.0, 1.0)
+    self.raw_wave_transformed = background_clamp = tf.clip_by_value(background_add, -1.0, 1.0)
     # Run the spectrogram and MFCC ops to get a 2D 'fingerprint' of the audio.
-    spectrogram = contrib_audio.audio_spectrogram(
+    self.spectrogram = spectrogram = contrib_audio.audio_spectrogram(
         background_clamp,
         window_size=model_settings['window_size_samples'],
         stride=model_settings['window_stride_samples'],
