@@ -19,6 +19,7 @@ parallel adv_lace_32ch.2(qsub="-hard -l h_vmem=15G -l h_rt=80:00:00 -l gpu=1"):
     TEST_DATA_DIR=""
     TRAIN_DIR="/work/asr2/bozheniuk/tmp/speech_commands_train/adv_lace_32/"
     SUM_DIR="/work/asr2/bozheniuk/tmp/retrain_logs/"
+    CHECKPOINT_PATH=""
 
     CHECKPOINT="/work/asr2/bozheniuk/tmp/speech_commands_train/adv_lace_32/.ckpt-5000"
 
@@ -40,4 +41,4 @@ parallel adv_lace_32ch.2(qsub="-hard -l h_vmem=15G -l h_rt=80:00:00 -l gpu=1"):
         echo "Using GPU$CUDA_VISIBLE_DEVICES (mapped as /gpu:0)"
     fi
 
-    $PY train.py --data_dir=$TRAIN_DATA_DIR --summaries_dir=$SUM_DIR --train_dir=$TRAIN_DIR --start_checkpoint=$CHECKPOINT --arch_config_file=$MODEL_CONFIG
+    $PY train.py --data_dir=$TRAIN_DATA_DIR --summaries_dir=$SUM_DIR --checkpoint_dir=$CHECKPOINT_PATH --start_checkpoint=$CHECKPOINT --arch_config_file=$MODEL_CONFIG
