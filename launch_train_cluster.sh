@@ -8,22 +8,23 @@ concurrent trainNetwork:
 
 concurrent trainNetwork
 
-parallel adv_lace_32ch.2(qsub="-hard -l h_vmem=15G -l h_rt=80:00:00 -l gpu=1"):
+parallel mobile_net_1(qsub="-hard -l h_vmem=15G -l h_rt=80:00:00 -l gpu=1"):
     source /etc/lsb-release
     echo "Ubuntu $DISTRIB_RELEASE $DISTRIB_CODENAME"
-    source ./config/activate-cuda.sh
+    source ./cluster_scripts/activate-cuda.sh
     source /u/bozheniuk/tensorflow-gpu/bin/activate
     PY="python3"
 
     TRAIN_DATA_DIR="/work/asr2/bozheniuk/tmp/speech_dataset/"
     TEST_DATA_DIR=""
-    TRAIN_DIR="/work/asr2/bozheniuk/tmp/speech_commands_train/adv_lace_32/"
+    TRAIN_DIR="/work/asr2/bozheniuk/tmp/speech_commands_train/mobile_net/"
     SUM_DIR="/work/asr2/bozheniuk/tmp/retrain_logs/"
     CHECKPOINT_PATH=""
 
-    CHECKPOINT="/work/asr2/bozheniuk/tmp/speech_commands_train/adv_lace_32/.ckpt-5000"
-
-    MODEL_CONFIG="model_configs/adversarial_lace_config"
+    #CHECKPOINT="/work/asr2/bozheniuk/tmp/speech_commands_train/adv_lace_32/.ckpt-5000"
+    CHECKPOINT=""
+    
+    MODEL_CONFIG="model_configs/mobile_net_config"
 
 
 
@@ -32,10 +33,10 @@ parallel adv_lace_32ch.2(qsub="-hard -l h_vmem=15G -l h_rt=80:00:00 -l gpu=1"):
     if [ -z "$CUDA_VISIBLE_DEVICES" ]; then
         # TF will not automatically select a free GPU.
         # So just let the first free GPU be the only visible GPU to TF.
-        export CUDA_VISIBLE_DEVICES=$(./config/first-free-gpu.py || echo "")
+        export CUDA_VISIBLE_DEVICES=$(./cluster_scripts/first-free-gpu.py || echo "")
         if [ "$CUDA_VISIBLE_DEVICES" = "" ]; then
             echo "Error, no GPU found."
-            ./config/test-gpus.py
+            ./cluster_scripts/test-gpus.py
             exit 1
         fi
         echo "Using GPU$CUDA_VISIBLE_DEVICES (mapped as /gpu:0)"

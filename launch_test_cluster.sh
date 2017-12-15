@@ -10,7 +10,7 @@ parallel start128_testNetwork(qsub="-hard -l h_vmem=15G -l h_rt=80:00:00 -l gpu=
 
     source /etc/lsb-release
     echo "Ubuntu $DISTRIB_RELEASE $DISTRIB_CODENAME"
-    source ./config/activate-cuda.sh
+    source ./cluster_scripts/activate-cuda.sh
     source /u/bozheniuk/tensorflow-gpu/bin/activate
     PY="python3"
 
@@ -18,10 +18,10 @@ parallel start128_testNetwork(qsub="-hard -l h_vmem=15G -l h_rt=80:00:00 -l gpu=
     if [ -z "$CUDA_VISIBLE_DEVICES" ]; then
         # TF will not automatically select a free GPU.
         # So just let the first free GPU be the only visible GPU to TF.
-        export CUDA_VISIBLE_DEVICES=$(./config/first-free-gpu.py || echo "")
+        export CUDA_VISIBLE_DEVICES=$(./cluster_scripts/first-free-gpu.py || echo "")
         if [ "$CUDA_VISIBLE_DEVICES" = "" ]; then
             echo "Error, no GPU found."
-            ./config/test-gpus.py
+            ./cluster_scripts/test-gpus.py
             exit 1
         fi
         echo "Using GPU$CUDA_VISIBLE_DEVICES (mapped as /gpu:0)"
