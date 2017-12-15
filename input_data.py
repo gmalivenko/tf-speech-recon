@@ -26,6 +26,7 @@ import random
 import re
 import sys
 import tarfile
+import configparser
 
 import numpy as np
 from six.moves import urllib
@@ -44,6 +45,78 @@ UNKNOWN_WORD_LABEL = '_unknown_'
 UNKNOWN_WORD_INDEX = 1
 BACKGROUND_NOISE_DIR_NAME = '_background_noise_'
 RANDOM_SEED = 12345
+
+
+def prepare_model_settings(arch_conf_file):
+    """Calculates common settings needed for all models.
+
+    Args:
+      label_count: How many classes are to be recognized.
+      sample_rate: Number of audio samples per second.
+      clip_duration_ms: Length of each audio clip to be analyzed.
+      window_size_ms: Duration of frequency analysis window.
+      window_stride_ms: How far to move in time between frequency windows.
+      dct_coefficient_count: Number of frequency bins to use for analysis.
+
+    Returns:
+      Dictionary containing common settings.
+    """
+
+    model_settings = {}
+
+    parser = configparser.ConfigParser()
+    parser.read(arch_conf_file)
+
+    for section in parser.sections():
+        # print(section)
+        for k in parser[section]:
+            try:
+                model_settings[k] = float(parser[section][k])
+            except:
+                model_settings[k] = parser[section][k]
+
+    try:
+        model_settings['how_many_training_steps'] = list(map(int, model_settings['how_many_training_steps'].split(',')))
+        model_settings['learning_rate'] = list(map(float, model_settings['learning_rate'].split(',')))
+    except:
+        model_settings['how_many_training_steps'] = [model_settings['how_many_training_steps']]
+        model_settings['learning_rate'] = [model_settings['learning_rate']]
+
+
+    sample_rate = int(model_settings['sample_rate'])
+    clip_duration_ms = int(model_settings['clip_duration_ms'])
+    window_size_ms = int(model_settings['window_size_ms'])
+    window_stride_ms = int(model_settings['window_stride_ms'])
+    features = model_settings['features']
+    fft_window_size = int(model_settings['fft_window_size'])
+    dct_coefficient_count = int(model_settings['dct_coefficient_count'])
+    label_count = len(prepare_words_list(model_settings['wanted_words'].split(',')))
+
+    desired_samples = int(sample_rate * clip_duration_ms / 1000)
+    window_size_samples = int(sample_rate * window_size_ms / 1000)
+    window_stride_samples = int(sample_rate * window_stride_ms / 1000)
+    length_minus_window = (desired_samples - window_size_samples)
+    if length_minus_window < 0:
+        spectrogram_length = 0
+    else:
+        spectrogram_length = 1 + int(length_minus_window / window_stride_samples)
+
+    if features == 'raw':
+        fingerprint_size = sample_rate
+    elif features == 'spectrogram':
+        fingerprint_size = spectrogram_length * fft_window_size
+    else:
+        fingerprint_size = dct_coefficient_count * spectrogram_length
+
+    model_settings['wanted_words'] = model_settings['wanted_words'].split(',')
+    model_settings['desired_samples'] = desired_samples
+    model_settings['window_size_samples'] = window_size_samples
+    model_settings['window_stride_samples'] = int(window_stride_samples)
+    model_settings['spectrogram_length'] = int(spectrogram_length)
+    model_settings['fingerprint_size'] = int(fingerprint_size)
+    model_settings['label_count'] = int(label_count)
+
+    return model_settings
 
 
 def prepare_words_list(wanted_words):
@@ -151,14 +224,14 @@ def save_wav_file(filename, wav_data, sample_rate):
 class AudioProcessor(object):
   """Handles loading, partitioning, and preparing audio training data."""
 
-  def __init__(self, data_url, data_dir, silence_percentage, unknown_percentage,
-               wanted_words, validation_percentage, testing_percentage,
-               model_settings):
+  def __init__(self, data_url, data_dir, model_settings):
     self.data_dir = data_dir
     # self.maybe_download_and_extract_dataset(data_url, data_dir)
-    self.prepare_data_index(silence_percentage, unknown_percentage,
-                            wanted_words, validation_percentage,
-                            testing_percentage)
+    self.prepare_data_index(model_settings['silence_percentage'],
+                            model_settings['unknown_percentage'],
+                            model_settings['wanted_words'],
+                            model_settings['validation_percentage'],
+                            model_settings['testing_percentage'])
     self.prepare_background_data()
     self.prepare_processing_graph(model_settings)
 
@@ -443,6 +516,7 @@ class AudioProcessor(object):
       sample_count = len(candidates)
     else:
       sample_count = max(0, min(how_many, len(candidates) - offset))
+
     # Data and labels will be populated and returned.
     data = np.zeros((sample_count, model_settings['fingerprint_size']))
     labels = np.zeros((sample_count, model_settings['label_count']))
