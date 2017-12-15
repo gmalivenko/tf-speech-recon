@@ -1,0 +1,5 @@
+[arch-parameters]
+arch = mobile_cnn
+is_adversarial = 0
+channel_size = 32
+
