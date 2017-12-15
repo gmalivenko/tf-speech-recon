@@ -52,7 +52,9 @@ def prepare_model_settings(label_count, sample_rate, clip_duration_ms,
     else:
         spectrogram_length = 1 + int(length_minus_window / window_stride_samples)
     fingerprint_size = dct_coefficient_count * spectrogram_length
-    return {
+
+
+    model_settings = {
         'desired_samples': desired_samples,
         'window_size_samples': window_size_samples,
         'window_stride_samples': window_stride_samples,
@@ -60,13 +62,60 @@ def prepare_model_settings(label_count, sample_rate, clip_duration_ms,
         'dct_coefficient_count': dct_coefficient_count,
         'fingerprint_size': fingerprint_size,
         'label_count': label_count,
-        'sample_rate': sample_rate,
-        'arch_config_file': arch_conf_file
+        'sample_rate': sample_rate
     }
 
-class Graph(object):
+    parser = configparser.ConfigParser()
+    parser.read(arch_conf_file)
 
-    def create_model(self, model_settings, runtime_settings=None):
+    for section in parser.sections():
+        # print(section)
+        for k in parser[section]:
+            model_settings[k] = parser[section][k]
+
+    return model_settings
+
+
+class Graph(object):
+    def __init__(self, model_settings):
+        self.model_settings = model_settings
+        self.model_architecture = self.model_settings['arch']
+        self.prepare_placeholders()
+        output = self.create_model()
+        self.add_optimizer(output)
+
+    def prepare_placeholders(self):
+        self.input_frequency_size = self.model_settings['dct_coefficient_count']
+        self.input_time_size = self.model_settings['spectrogram_length']
+
+        self.input_frequency_size = self.model_settings['dct_coefficient_count']
+        self.input_time_size = self.model_settings['spectrogram_length']
+
+        self.fingerprint_size = self.model_settings['fingerprint_size']
+        self.fingerprint_input = tf.placeholder(
+            tf.float32, [None, self.fingerprint_size], name='fingerprint_input')
+
+        self.fingerprint_4d = tf.reshape(self.fingerprint_input,
+                                         [-1, self.input_time_size, self.input_frequency_size, 1])
+
+        self.is_training = tf.placeholder(tf.bool, name='is_training')
+        self.dropout_prob = tf.placeholder(tf.float32, name='dropout_prob')
+
+        self.w = {}
+        self.layer = {}
+
+        self.label_count = self.model_settings['label_count']
+
+        if self.is_adversarial():
+            self.noise_label_count = self.model_settings['noise_label_count']
+            self.noise_labels = tf.placeholder(
+                tf.float32, [None, self.noise_label_count], name='adversarial_groundtruth_input')
+
+        self.ground_truth_input = tf.placeholder(
+            tf.float32, [None, self.label_count], name='groundtruth_input')
+
+
+    def create_model(self, runtime_settings=None):
       """Builds a model of the requested architecture compatible with the settings.
 
       There are many possible ways of deriving predictions from a spectrogram
@@ -100,36 +149,99 @@ class Graph(object):
         Exception: If the architecture type isn't recognized.
       """
 
-      configFilePath = model_settings['arch_config_file']
-      parser = configparser.ConfigParser()
-      parser.read(configFilePath)
-
-      self.model_architecture = parser['arch-parameters']['arch']
-      # model_architecture = 'mobile_cnn'
-
-      self.parser = parser
-
       if self.model_architecture == 'single_fc':
-        return self.create_single_fc_model(model_settings)
+        return self.create_single_fc_model()
       elif self.model_architecture == 'conv':
-        return self.create_conv_model(model_settings)
+        return self.create_conv_model()
       elif self.model_architecture == 'lace':
-        return self.create_lace_model(model_settings, parser)
+        return self.create_lace_model()
       elif self.model_architecture == 'adversarial_lace':
-        return self.create_adversarial_lace_model(model_settings, parser)
+        return self.create_adversarial_lace_model()
       elif self.model_architecture == 'lace_no_batch_norm':
-        return self.create_lace_no_batch_norm_model(model_settings)
+        return self.create_lace_no_batch_norm_model()
       elif self.model_architecture == 'mobile_cnn':
-        return self.create_mobile_cnn(model_settings, parser)
+        return self.create_mobile_cnn()
       elif self.model_architecture == 'low_latency_conv':
-        return self.create_low_latency_conv_model(model_settings)
+        return self.create_low_latency_conv_model()
       elif self.model_architecture == 'low_latency_svdf':
-        return self.create_low_latency_svdf_model(model_settings, runtime_settings)
+        return self.create_low_latency_svdf_model()
       else:
         raise Exception('model_architecture argument "' + self.model_architecture +
                         '" not recognized, should be one of "single_fc", "conv",' +
                         ' "low_latency_conv, or "low_latency_svdf"')
 
+
+    def add_optimizer(self, net_output):
+        control_dependencies = []
+        # checks = tf.add_check_numerics_ops()
+        # control_dependencies = [checks]
+
+        # Create the back propagation and training evaluation machinery in the graph.
+        if self.is_adversarial():
+            with tf.name_scope('target_cross_entropy'):
+                self.cross_entropy_mean = tf.reduce_mean(
+                    tf.nn.softmax_cross_entropy_with_logits(
+                        labels=self.ground_truth_input, logits=net_output[0]))
+            tf.summary.scalar('target_cross_entropy', self.cross_entropy_mean)
+            with tf.name_scope('target_train'), tf.control_dependencies(control_dependencies):
+                self.learning_rate_input = tf.placeholder(
+                    tf.float32, [], name='learning_rate_input')
+                self.optimizer = tf.train.GradientDescentOptimizer(
+                    self.learning_rate_input)
+
+                self.grads_and_vars = self.optimizer.compute_gradients(self.cross_entropy_mean)
+                self.train_step = self.optimizer.apply_gradients(self.grads_and_vars)
+                # self.train_step = self.optimizer.minimize(self.cross_entropy_mean)
+
+                self.predicted_indices = tf.argmax(net_output[0], 1)
+                self.expected_indices = tf.argmax(self.ground_truth_input, 1)
+                self.correct_prediction = tf.equal(self.predicted_indices, self.expected_indices)
+                self.confusion_matrix = tf.confusion_matrix(self.expected_indices, self.predicted_indices,
+                                                            num_classes=self.label_count)
+                self.evaluation_step = tf.reduce_mean(tf.cast(self.correct_prediction, tf.float32))
+
+            with tf.name_scope('adv_cross_entropy'):
+                self.adv_cross_entropy_mean = tf.reduce_mean(
+                    tf.nn.softmax_cross_entropy_with_logits(
+                        labels=self.noise_labels, logits=net_output[1]))
+
+            with tf.name_scope('adv_train'):
+                self.adv_learning_rate_input = tf.placeholder(
+                    tf.float32, [], name='adv_learning_rate_input')
+                self.adv_optimizer = tf.train.GradientDescentOptimizer(
+                    self.adv_learning_rate_input)
+                self.adv_train_step = self.adv_optimizer.minimize(self.adv_cross_entropy_mean)
+
+            self.adv_predicted_indices = tf.argmax(net_output[1], 1)
+            self.adv_expected_indices = tf.argmax(self.noise_labels, 1)
+            self.adv_correct_prediction = tf.equal(self.adv_predicted_indices, self.adv_expected_indices)
+            self.adv_confusion_matrix = tf.confusion_matrix(self.adv_expected_indices, self.adv_predicted_indices,
+                                                        num_classes=self.noise_label_count)
+            self.adv_evaluation_step = tf.reduce_mean(tf.cast(self.adv_correct_prediction, tf.float32))
+
+
+        with tf.name_scope('cross_entropy'):
+            self.cross_entropy_mean = tf.reduce_mean(
+                tf.nn.softmax_cross_entropy_with_logits(
+                    labels=self.ground_truth_input, logits=net_output[0]))
+        tf.summary.scalar('cross_entropy', self.cross_entropy_mean)
+        with tf.name_scope('train'), tf.control_dependencies(control_dependencies):
+            self.learning_rate_input = tf.placeholder(
+                tf.float32, [], name='learning_rate_input')
+            self.optimizer = tf.train.GradientDescentOptimizer(
+                self.learning_rate_input)
+
+            self.grads_and_vars = self.optimizer.compute_gradients(self.cross_entropy_mean)
+
+            self.train_step = self.optimizer.apply_gradients(self.grads_and_vars)
+            # self.train_step = self.optimizer.minimize(self.cross_entropy_mean)
+
+        self.predicted_indices = tf.argmax(net_output[0], 1)
+        self.expected_indices = tf.argmax(self.ground_truth_input, 1)
+        self.correct_prediction = tf.equal(self.predicted_indices, self.expected_indices)
+        self.confusion_matrix = tf.confusion_matrix(self.expected_indices, self.predicted_indices,
+                                                    num_classes=self.label_count)
+        self.evaluation_step = tf.reduce_mean(tf.cast(self.correct_prediction, tf.float32))
 
     def get_arch_name(self):
       return self.model_architecture
@@ -146,10 +258,10 @@ class Graph(object):
 
 
     def is_adversarial(self):
-        return bool(self.parser['arch-parameters']['is_adversarial'])
+        return int(self.model_settings['is_adversarial'])
 
 
-    def create_single_fc_model(self, model_settings):
+    def create_single_fc_model(self):
       """Builds a model with a single hidden fully-connected layer.
 
       This is a very simple model with just one matmul and bias layer. As you'd
@@ -174,13 +286,13 @@ class Graph(object):
         TensorFlow node outputting logits results, and optionally a dropout
         placeholder.
       """
-      fingerprint_size = model_settings['fingerprint_size']
+      fingerprint_size = self.model_settings['fingerprint_size']
       self.fingerprint_input = tf.placeholder(
           tf.float32, [None, fingerprint_size], name='fingerprint_input')
 
       self.dropout_prob = tf.placeholder(tf.float32, name='dropout_prob')
-      fingerprint_size = model_settings['fingerprint_size']
-      label_count = model_settings['label_count']
+      fingerprint_size = self.model_settings['fingerprint_size']
+      label_count = self.model_settings['label_count']
       weights = tf.Variable(
           tf.truncated_normal([fingerprint_size, label_count], stddev=0.001))
       bias = tf.Variable(tf.zeros([label_count]))
@@ -189,29 +301,14 @@ class Graph(object):
       return
 
 
-    def create_lace_model(self, model_settings, parser):
-        input_frequency_size = model_settings['dct_coefficient_count']
-        input_time_size = model_settings['spectrogram_length']
-
-        fingerprint_size = model_settings['fingerprint_size']
-        self.fingerprint_input = tf.placeholder(
-            tf.float32, [None, fingerprint_size], name='fingerprint_input')
-
-        self.fingerprint_4d = tf.reshape(self.fingerprint_input,
-                                    [-1, input_time_size, input_frequency_size, 1])
-
-        self.is_training = tf.placeholder(tf.bool, name='is_training')
-        self.dropout_prob = tf.placeholder(tf.float32, name='dropout_prob')
-
-        self.w = {}
-        self.layer = {}
+    def create_lace_model(self):
 
         self.initializer = tf.truncated_normal_initializer(0, 0.02)
         activation_fn = tf.nn.relu
 
-        channel_start = int(parser['arch-parameters']['channel_size'])
-        jump_block_num = int(parser['arch-parameters']['jump_block_num'])
-        jump_net_num = int(parser['arch-parameters']['jump_net_num'])
+        channel_start = int(self.model_settings['channel_size'])
+        jump_block_num = int(self.model_settings['jump_block_num'])
+        jump_net_num = int(self.model_settings['jump_net_num'])
 
         self.layer['output_0'] = self.fingerprint_4d
 
@@ -276,69 +373,21 @@ class Graph(object):
         # layer['output_flat'] = tf.reshape(layer['output'], [-1, reduce(lambda x, y: x * y, shape[1:])])
         self.layer['output_flat'] = tf.squeeze(self.layer['output'], [1, 2, 4])
 
-
-        label_count = model_settings['label_count']
         self.layer['size_mapping'], self.w['size_mapping_w'], self.w['size_mapping_b'] = linear(
             self.layer['output_flat'],
-            label_count,
+            self.label_count,
             name='linear_mapping')
 
         self.final_fc = self.layer['size_mapping']
+        return self.final_fc
 
-        self.ground_truth_input = tf.placeholder(
-            tf.float32, [None, label_count], name='groundtruth_input')
-
-        control_dependencies = []
-        # checks = tf.add_check_numerics_ops()
-        # control_dependencies = [checks]
-
-        # Create the back propagation and training evaluation machinery in the graph.
-        with tf.name_scope('cross_entropy'):
-            self.cross_entropy_mean = tf.reduce_mean(
-                tf.nn.softmax_cross_entropy_with_logits(
-                    labels=self.ground_truth_input, logits=self.final_fc))
-        tf.summary.scalar('cross_entropy', self.cross_entropy_mean)
-        with tf.name_scope('train'), tf.control_dependencies(control_dependencies):
-            self.learning_rate_input = tf.placeholder(
-                tf.float32, [], name='learning_rate_input')
-            self.optimizer = tf.train.GradientDescentOptimizer(
-                self.learning_rate_input)
-
-            self.grads_and_vars = self.optimizer.compute_gradients(self.cross_entropy_mean)
-
-            self.train_step = self.optimizer.apply_gradients(self.grads_and_vars)
-            # self.train_step = self.optimizer.minimize(self.cross_entropy_mean)
-
-        self.predicted_indices = tf.argmax(self.final_fc, 1)
-        self.expected_indices = tf.argmax(self.ground_truth_input, 1)
-        self.correct_prediction = tf.equal(self.predicted_indices, self.expected_indices)
-        self.confusion_matrix = tf.confusion_matrix(self.expected_indices, self.predicted_indices, num_classes=label_count)
-        self.evaluation_step = tf.reduce_mean(tf.cast(self.correct_prediction, tf.float32))
-        return
-
-    def create_adversarial_lace_model(self, model_settings, parser):
-        input_frequency_size = model_settings['dct_coefficient_count']
-        input_time_size = model_settings['spectrogram_length']
-
-        fingerprint_size = model_settings['fingerprint_size']
-        self.fingerprint_input = tf.placeholder(
-            tf.float32, [None, fingerprint_size], name='fingerprint_input')
-
-        self.fingerprint_4d = tf.reshape(self.fingerprint_input,
-                                    [-1, input_time_size, input_frequency_size, 1])
-
-        self.is_training = tf.placeholder(tf.bool, name='is_training')
-        self.dropout_prob = tf.placeholder(tf.float32, name='dropout_prob')
-
-        self.w = {}
-        self.layer = {}
-
+    def create_adversarial_lace_model(self):
         self.initializer = tf.truncated_normal_initializer(0, 0.02)
         activation_fn = tf.nn.relu
 
-        channel_start = int(parser['arch-parameters']['channel_size'])
-        jump_block_num = int(parser['arch-parameters']['jump_block_num'])
-        jump_net_num = int(parser['arch-parameters']['jump_net_num'])
+        channel_start = int(self.model_settings['channel_size'])
+        jump_block_num = int(self.model_settings['jump_block_num'])
+        jump_net_num = int(self.model_settings['jump_net_num'])
 
         self.layer['output_0'] = self.fingerprint_4d
 
@@ -401,44 +450,14 @@ class Graph(object):
             self.layer['output'], self.w['output'] = weighted_sum(last_layer)
             self.layer['output_flat'] = tf.squeeze(self.layer['output'], [1, 2, 4])
 
+
         with tf.variable_scope('target_subnet'):
-            label_count = model_settings['label_count']
             self.layer['size_mapping'], self.w['size_mapping_w'], self.w['size_mapping_b'] = linear(
                 self.layer['output_flat'],
-                label_count,
+                self.label_count,
                 name='linear_mapping')
 
             self.final_fc = self.layer['size_mapping']
-
-            self.ground_truth_input = tf.placeholder(
-                tf.float32, [None, label_count], name='groundtruth_input')
-
-            control_dependencies = []
-            # checks = tf.add_check_numerics_ops()
-            # control_dependencies = [checks]
-
-            # Create the back propagation and training evaluation machinery in the graph.
-            with tf.name_scope('cross_entropy'):
-                self.cross_entropy_mean = tf.reduce_mean(
-                    tf.nn.softmax_cross_entropy_with_logits(
-                        labels=self.ground_truth_input, logits=self.final_fc))
-            tf.summary.scalar('cross_entropy', self.cross_entropy_mean)
-            with tf.name_scope('train'), tf.control_dependencies(control_dependencies):
-                self.learning_rate_input = tf.placeholder(
-                    tf.float32, [], name='learning_rate_input')
-                self.optimizer = tf.train.GradientDescentOptimizer(
-                    self.learning_rate_input)
-
-                # grads_and_vars = self.optimizer.compute_gradients(self.cross_entropy_mean)
-                #
-                # self.train_step = self.optimizer.apply_gradients(grads_and_vars)
-                self.train_step = self.optimizer.minimize(self.cross_entropy_mean)
-
-            self.predicted_indices = tf.argmax(self.final_fc, 1)
-            self.expected_indices = tf.argmax(self.ground_truth_input, 1)
-            self.correct_prediction = tf.equal(self.predicted_indices, self.expected_indices)
-            self.confusion_matrix = tf.confusion_matrix(self.expected_indices, self.predicted_indices, num_classes=label_count)
-            self.evaluation_step = tf.reduce_mean(tf.cast(self.correct_prediction, tf.float32))
 
         with tf.variable_scope('adversarial'):
             #gradient reversal layer
@@ -450,54 +469,15 @@ class Graph(object):
             grl_back = -self.adv_lamda * self.layer['output_flat']
             grl_forward = grl_back + tf.stop_gradient(self.layer['output_flat'] - grl_back)
 
-            noise_label_count = model_settings['noise_label_count']
+
             self.layer['adv_output'], self.w['adv_w'], self.w['adv_b'] = linear(
                 grl_forward,
-                noise_label_count,
+                self.noise_label_count,
                 name='adversarial_linear_mapping')
 
-            self.noise_labels = tf.placeholder(
-                tf.float32, [None, noise_label_count], name='adversarial_groundtruth_input')
+        return self.final_fc, self.layer['adv_output']
 
-            with tf.name_scope('cross_entropy'):
-                self.adv_cross_entropy_mean = tf.reduce_mean(
-                    tf.nn.softmax_cross_entropy_with_logits(
-                        labels=self.noise_labels, logits=self.layer['adv_output']))
-
-            with tf.name_scope('train'):
-                self.adv_learning_rate_input = tf.placeholder(
-                    tf.float32, [], name='adv_learning_rate_input')
-                self.adv_optimizer = tf.train.GradientDescentOptimizer(
-                    self.adv_learning_rate_input)
-                self.adv_train_step = self.adv_optimizer.minimize(self.adv_cross_entropy_mean)
-
-            self.adv_predicted_indices = tf.argmax(self.layer['adv_output'], 1)
-            self.adv_expected_indices = tf.argmax(self.noise_labels, 1)
-            self.adv_correct_prediction = tf.equal(self.adv_predicted_indices, self.adv_expected_indices)
-            self.adv_confusion_matrix = tf.confusion_matrix(self.adv_expected_indices, self.adv_predicted_indices,
-                                                        num_classes=noise_label_count)
-            self.adv_evaluation_step = tf.reduce_mean(tf.cast(self.adv_correct_prediction, tf.float32))
-
-        return
-
-    def create_mobile_cnn(self, model_settings, parser):
-        input_frequency_size = model_settings['dct_coefficient_count']
-        input_time_size = model_settings['spectrogram_length']
-
-        print(input_time_size, input_frequency_size)
-
-        fingerprint_size = model_settings['fingerprint_size']
-        self.fingerprint_input = tf.placeholder(
-            tf.float32, [None, fingerprint_size], name='fingerprint_input')
-
-        self.fingerprint_4d = tf.reshape(self.fingerprint_input,
-                                    [-1, input_time_size, input_frequency_size, 1])
-
-        self.is_training = tf.placeholder(tf.bool, name='is_training')
-        self.dropout_prob = tf.placeholder(tf.float32, name='dropout_prob')
-
-        self.w = {}
-        self.layer = {}
+    def create_mobile_cnn(self):
 
         self.initializer = tf.truncated_normal_initializer(0, 0.02)
         activation_fn = tf.nn.relu
@@ -633,11 +613,9 @@ class Graph(object):
         self.layer['pool'] = tf.nn.pool(self.layer['conv13'], window_shape=(shape[1], shape[2]), pooling_type='AVG', padding='VALID')
         self.layer['squeeze'] = tf.squeeze(self.layer['pool'], axis=[1, 2])
 
-        label_count = model_settings['label_count']
-        self.layer['fc'], self.w['fc_w'], self.w['fc_b']  = linear(self.layer['squeeze'], label_count, name='final_fc')
-        print(self.layer['fc'].get_shape().as_list())
-        exit()
-        return
+        self.layer['fc'], self.w['fc_w'], self.w['fc_b']  = linear(self.layer['squeeze'], self.label_count, name='final_fc')
+
+        return self.layer['fc']
 
     def create_lace_no_batch_norm_model(self, fingerprint_input, model_settings, is_training):
         input_frequency_size = model_settings['dct_coefficient_count']

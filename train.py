@@ -95,7 +95,6 @@ def main(_):
   # Begin by making sure we have the training data we need. If you already have
   # training data of your own, use `--data_url= ` on the command line to avoid
   # downloading.
-  graph = Graph()
 
   model_settings = prepare_model_settings(
       len(input_data.prepare_words_list(FLAGS.wanted_words.split(','))),
@@ -110,8 +109,8 @@ def main(_):
 
   model_settings['noise_label_count'] = audio_processor.background_label_count() + 1
 
-  fingerprint_size = model_settings['fingerprint_size']
-  label_count = model_settings['label_count']
+  graph = Graph(model_settings)
+
   time_shift_samples = int((FLAGS.time_shift_ms * FLAGS.sample_rate) / 1000)
   # Figure out the learning rates for each training phase. Since it's often
   # effective to have high learning rates at the start of training, followed by
@@ -128,7 +127,7 @@ def main(_):
         'lists, but are %d and %d long instead' % (len(training_steps_list),
                                                    len(learning_rates_list)))
 
-  graph.create_model(model_settings)
+  # graph.create_model(model_settings)
 
   tf.summary.scalar('accuracy', graph.evaluation_step)
 
@@ -161,7 +160,7 @@ def main(_):
 
   # Save list of words.
   with gfile.GFile(
-      os.path.join(FLAGS.train_dir, FLAGS.model_architecture + '_labels.txt'),
+      os.path.join(FLAGS.checkpoint_dir, FLAGS.model_architecture + '_labels.txt'),
       'w') as f:
     f.write('\n'.join(audio_processor.words_list))
 
@@ -197,7 +196,7 @@ def main(_):
                     (training_step, learning_rate_value, train_accuracy * 100,
                      cross_entropy_value))
 
-    if graph.is_adversarial:
+    if graph.is_adversarial():
         adv_train_accuracy, adv_cross_entropy_value, _ = sess.run(
             [
                 graph.adv_evaluation_step, graph.adv_cross_entropy_mean, graph.adv_train_step
@@ -441,12 +440,12 @@ if __name__ == '__main__':
     parser.add_argument(
         '--model_architecture',
         type=str,
-        default='mobile',
+        default='lace',
         help='What model architecture to use')
     parser.add_argument(
         '--arch_config_file',
         type=str,
-        default='',
+        default='model_configs/adversarial_lace_config',
         help='File containing model parameters')
     parser.add_argument(
         '--check_nans',
