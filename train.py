@@ -99,7 +99,7 @@ def main(_):
   model_settings = prepare_model_settings(
       len(input_data.prepare_words_list(FLAGS.wanted_words.split(','))),
       FLAGS.sample_rate, FLAGS.clip_duration_ms, FLAGS.window_size_ms,
-      FLAGS.window_stride_ms, FLAGS.dct_coefficient_count, FLAGS.arch_config_file)
+      FLAGS.window_stride_ms, FLAGS.dct_coefficient_count, FLAGS.arch_config_file, FLAGS.features, FLAGS.fft_window_size)
 
   audio_processor = input_data.AudioProcessor(
       FLAGS.data_url, FLAGS.data_dir, FLAGS.silence_percentage,
@@ -177,7 +177,7 @@ def main(_):
     # Pull the audio samples we'll use for training.
     train_fingerprints, train_ground_truth, train_noise_labels = audio_processor.get_data(
         FLAGS.batch_size, 0, model_settings, FLAGS.background_frequency,
-        FLAGS.background_volume, time_shift_samples, 'training', sess)
+        FLAGS.background_volume, time_shift_samples, 'training', sess, features=FLAGS.features)
     # Run the graph with this batch of training data.
     train_summary, train_accuracy, cross_entropy_value, _, _ = sess.run(
         [
@@ -452,6 +452,16 @@ if __name__ == '__main__':
         type=bool,
         default=False,
         help='Whether to check for invalid numbers during processing')
+    parser.add_argument(
+      '--features',
+      type=str,
+      default='raw',
+      help='Which features (mfcc, spectrogram, raw signal) should be used to train the model')
+    parser.add_argument(
+      '--fft_window_size',
+      type=int,
+      default=256,
+      help='Window size for FFT')
 
     FLAGS, unparsed = parser.parse_known_args()
     tf.app.run(main=main, argv=[sys.argv[0]] + unparsed)

@@ -388,15 +388,15 @@ class AudioProcessor(object):
     background_mul = tf.multiply(self.background_data_placeholder_,
                                  self.background_volume_placeholder_)
     background_add = tf.add(background_mul, sliced_foreground)
-    self.raw_wave_transformed = background_clamp = tf.clip_by_value(background_add, -1.0, 1.0)
+    self.pcm_array_ = tf.clip_by_value(background_add, -1.0, 1.0)
     # Run the spectrogram and MFCC ops to get a 2D 'fingerprint' of the audio.
-    self.spectrogram = spectrogram = contrib_audio.audio_spectrogram(
-        background_clamp,
+    self.spectrogram_ = contrib_audio.audio_spectrogram(
+        self.pcm_array_,
         window_size=model_settings['window_size_samples'],
         stride=model_settings['window_stride_samples'],
         magnitude_squared=True)
     self.mfcc_ = contrib_audio.mfcc(
-        spectrogram,
+        self.spectrogram_,
         wav_decoder.sample_rate,
         dct_coefficient_count=model_settings['dct_coefficient_count'])
 
@@ -413,7 +413,7 @@ class AudioProcessor(object):
     return len(self.data_index[mode])
 
   def get_data(self, how_many, offset, model_settings, background_frequency,
-               background_volume_range, time_shift, mode, sess):
+               background_volume_range, time_shift, mode, sess, features='mfcc'):
     """Gather samples from the data set, applying transformations as needed.
 
     When the mode is 'training', a random selection of samples will be returned,
@@ -501,7 +501,12 @@ class AudioProcessor(object):
       else:
         input_dict[self.foreground_volume_placeholder_] = 1
       # Run the graph to produce the output audio.
-      data[i - offset, :] = sess.run(self.mfcc_, feed_dict=input_dict).flatten()
+      if features == "spectrogram":
+        data[i - offset, :] = sess.run(self.spectrogram_, feed_dict=input_dict).flatten()
+      elif features == "raw":
+        data[i - offset, :] = sess.run(self.pcm_array_, feed_dict=input_dict)
+      else:
+        data[i - offset, :] = sess.run(self.mfcc_, feed_dict=input_dict).flatten()
       label_index = self.word_to_index[sample['label']]
       labels[i - offset, label_index] = 1
     return data, labels, noise_labels
