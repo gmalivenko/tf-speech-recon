@@ -39,13 +39,13 @@ class SubmissionProcessor(object):
     #     break
 
 
-  def write_to_csv(self, human_string, id):
-      with open('./adv.csv', 'a') as csvfile:
+  def write_to_csv(self, human_string):
+      with open('./lace.csv', 'w') as csvfile:
           spamwriter = csv.writer(csvfile)
-          if id == 0:
-              spamwriter.writerow(['fname'] + ['label'])
+          spamwriter.writerow(['fname'] + ['label'])
           for i in range(len(human_string)):
-            spamwriter.writerow([self.data_index[id + i].rsplit('/', 1)[1]] + [human_string[i]])
+              spamwriter.writerow([self.data_index[i].rsplit('/', 1)[1]] + [human_string[i]])
+
 
   def get_test_data(self, how_many, offset, model_settings, sess):
 

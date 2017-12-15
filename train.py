@@ -316,7 +316,7 @@ if __name__ == '__main__':
         '--data_dir',
         type=str,
         # default='/tmp/speech_dataset/',
-        default='',
+        default='/home/vitaly/competition/train/audio/',
         help="""\
         Where to download the speech training data to.
         """)
@@ -439,7 +439,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--model_architecture',
         type=str,
-        default='',
+        default='mobile_cnn',
         help='What model architecture to use')
     parser.add_argument(
         '--arch_config_file',

@@ -56,13 +56,13 @@ def main(_):
     batch_indices = sess.run([graph.predicted_indices], feed_dict={graph.fingerprint_input: test_fingerprints,
                                                                    graph.is_training: True})
     # print(logits_)
-    # indices.extend(batch_indices)
-    audio_processor.write_to_csv(labels[batch_indices], i)
+    indices.extend(batch_indices)
+    # audio_processor.write_to_csv(labels[batch_indices], i)
   #
-  # human_string = []
-  # for i in indices:
-  #     human_string.append(labels[i])
-  # audio_processor.write_to_csv(human_string)
+  human_string = []
+  for i in indices:
+    human_string.append(labels[i])
+  audio_processor.write_to_csv(human_string)
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()

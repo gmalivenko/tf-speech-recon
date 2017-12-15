@@ -104,7 +104,8 @@ class Graph(object):
       parser = configparser.ConfigParser()
       parser.read(configFilePath)
 
-      model_architecture = parser['arch-parameters']['arch']
+      # model_architecture = parser['arch-parameters']['arch']
+      model_architecture = 'mobile_cnn'
 
       self.parser = parser
 
@@ -118,6 +119,8 @@ class Graph(object):
         return self.create_adversarial_lace_model(model_settings, parser)
       elif model_architecture == 'lace_no_batch_norm':
         return self.create_lace_no_batch_norm_model(model_settings)
+      elif model_architecture == 'mobile_cnn':
+        return self.create_mobile_cnn(model_settings, parser)
       elif model_architecture == 'low_latency_conv':
         return self.create_low_latency_conv_model(model_settings)
       elif model_architecture == 'low_latency_svdf':
@@ -478,6 +481,8 @@ class Graph(object):
         input_frequency_size = model_settings['dct_coefficient_count']
         input_time_size = model_settings['spectrogram_length']
 
+        print(input_time_size, input_frequency_size)
+
         fingerprint_size = model_settings['fingerprint_size']
         self.fingerprint_input = tf.placeholder(
             tf.float32, [None, fingerprint_size], name='fingerprint_input')
@@ -494,8 +499,141 @@ class Graph(object):
         self.initializer = tf.truncated_normal_initializer(0, 0.02)
         activation_fn = tf.nn.relu
 
-        channel_start = int(parser['arch-parameters']['channel_size'])
+        # channel_start = int(parser['arch-parameters']['channel_size'])
+        channel_start = 32
 
+        current_channel_num = channel_start
+        dw_layers_num = 13
+
+        kernel_shape = [3, 3]
+
+        self.layer['init_conv'], \
+        self.w['init_kernel'] = conv2d(self.fingerprint_4d,
+                                       output_dim=current_channel_num,
+                                       kernel_size=kernel_shape,
+                                       stride=(2, 2),
+                                       initializer=None,
+                                       padding='SAME',
+                                       name='init')
+
+        self.layer['init_bn'] = tf.layers.batch_normalization(self.layer['init_conv'],
+                                                              training=self.is_training)
+        self.layer['init_relu'] = tf.nn.relu(self.layer['init_bn'])
+        last_output = self.layer['init_relu']
+
+        self.layer['conv1'], \
+        self.w['conv1_dw'], \
+        self.w['conv1_pw'] = depthwise_separable_conv(self.layer['init_relu'],
+                                                      2 * channel_start,
+                                                      self.is_training,
+                                                      stride=(1, 1),
+                                                      padding='SAME',
+                                                      name='dw1')
+        self.layer['conv2'], \
+        self.w['conv2_dw'], \
+        self.w['conv2_pw'] = depthwise_separable_conv(self.layer['conv1'],
+                                                      4 * channel_start,
+                                                      self.is_training,
+                                                      stride=(2, 2),
+                                                      padding='SAME',
+                                                      name='dw2')
+        self.layer['conv3'], \
+        self.w['conv3_dw'], \
+        self.w['conv3_pw'] = depthwise_separable_conv(self.layer['conv2'],
+                                                      4 * channel_start,
+                                                      self.is_training,
+                                                      stride=(1, 1),
+                                                      padding='SAME',
+                                                      name='dw3')
+        self.layer['conv4'], \
+        self.w['conv4_dw'], \
+        self.w['conv4_pw'] = depthwise_separable_conv(self.layer['conv3'],
+                                                      8 * channel_start,
+                                                      self.is_training,
+                                                      stride=(2, 2),
+                                                      padding='SAME',
+                                                      name='dw4')
+        self.layer['conv5'], \
+        self.w['conv5_dw'], \
+        self.w['conv5_pw'] = depthwise_separable_conv(self.layer['conv4'],
+                                                      8 * channel_start,
+                                                      self.is_training,
+                                                      stride=(1, 1),
+                                                      padding='SAME',
+                                                      name='dw5')
+        self.layer['conv6'], \
+        self.w['conv6_dw'], \
+        self.w['conv6_pw'] = depthwise_separable_conv(self.layer['conv5'],
+                                                      16 * channel_start,
+                                                      self.is_training,
+                                                      stride=(2, 2),
+                                                      padding='SAME',
+                                                      name='dw6')
+        self.layer['conv7'], \
+        self.w['conv7_dw'], \
+        self.w['conv7_pw'] = depthwise_separable_conv(self.layer['conv6'],
+                                                      16 * channel_start,
+                                                      self.is_training,
+                                                      stride=(1, 1),
+                                                      padding='SAME',
+                                                      name='dw7')
+        self.layer['conv8'], \
+        self.w['conv8_dw'], \
+        self.w['conv8_pw'] = depthwise_separable_conv(self.layer['conv7'],
+                                                      16 * channel_start,
+                                                      self.is_training,
+                                                      stride=(1, 1),
+                                                      padding='SAME',
+                                                      name='dw8')
+        self.layer['conv9'], \
+        self.w['conv9_dw'], \
+        self.w['conv9_pw'] = depthwise_separable_conv(self.layer['conv8'],
+                                                      16 * channel_start,
+                                                      self.is_training,
+                                                      stride=(1, 1),
+                                                      padding='SAME',
+                                                      name='dw9')
+        self.layer['conv10'], \
+        self.w['conv10_dw'], \
+        self.w['conv10_pw'] = depthwise_separable_conv(self.layer['conv9'],
+                                                      16 * channel_start,
+                                                      self.is_training,
+                                                      stride=(1, 1),
+                                                      padding='SAME',
+                                                      name='dw10')
+        self.layer['conv11'], \
+        self.w['conv11_dw'], \
+        self.w['conv11_pw'] = depthwise_separable_conv(self.layer['conv10'],
+                                                      16 * channel_start,
+                                                      self.is_training,
+                                                      stride=(1, 1),
+                                                      padding='SAME',
+                                                      name = 'dw11')
+        self.layer['conv12'], \
+        self.w['conv12_dw'], \
+        self.w['conv12_pw'] = depthwise_separable_conv(self.layer['conv11'],
+                                                      32 * channel_start,
+                                                      self.is_training,
+                                                      stride=(2, 2),
+                                                      padding='SAME',
+                                                      name='dw12')
+        self.layer['conv13'], \
+        self.w['conv13_dw'], \
+        self.w['conv13_pw'] = depthwise_separable_conv(self.layer['conv12'],
+                                                      32 * channel_start,
+                                                      self.is_training,
+                                                      stride=(1, 1),
+                                                      padding='SAME',
+                                                      name='dw13')
+
+        shape = self.layer['conv13'].get_shape().as_list()
+        self.layer['pool'] = tf.nn.pool(self.layer['conv13'], window_shape=(shape[1], shape[2]), pooling_type='AVG', padding='VALID')
+        self.layer['squeeze'] = tf.squeeze(self.layer['pool'], axis=[1, 2])
+
+        label_count = model_settings['label_count']
+        self.layer['fc'], self.w['fc_w'], self.w['fc_b']  = linear(self.layer['squeeze'], label_count, name='final_fc')
+        print(self.layer['fc'].get_shape().as_list())
+        exit()
         return
 
     def create_lace_no_batch_norm_model(self, fingerprint_input, model_settings, is_training):

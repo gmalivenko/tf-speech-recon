@@ -88,7 +88,7 @@ def weighted_sum(input_, data_format='NDHWC', padding='VALID', name='weighted_su
     return out, w
 
 
-def depthwise_separable_conv(input_, output_size, is_training, kernel=(3, 3), stride=(1, 1), data_format='NDHWC', padding='VALID', name='weighted_sum'):
+def depthwise_separable_conv(input_, output_size, is_training, kernel=(3, 3), stride=(1, 1), data_format='NDHWC', padding='VALID', name='dw_conv'):
     shape = input_.get_shape().as_list()
 
     with tf.variable_scope(name):
