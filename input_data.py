@@ -485,7 +485,7 @@ class AudioProcessor(object):
             background_offset + desired_samples)]
         background_reshaped = background_clipped.reshape([desired_samples, 1])
         if np.random.uniform(0, 1) < background_frequency:
-          background_volume = np.random.uniform(0.3, background_volume_range)
+          background_volume = np.random.uniform(0.0, background_volume_range)
           noise_labels[i - offset, background_index] = 1
         else:
           background_volume = 0
@@ -504,7 +504,7 @@ class AudioProcessor(object):
       if features == "spectrogram":
         data[i - offset, :] = sess.run(self.spectrogram_, feed_dict=input_dict).flatten()
       elif features == "raw":
-        data[i - offset, :] = sess.run(self.pcm_array_, feed_dict=input_dict)
+        data[i - offset, :] = sess.run(self.pcm_array_, feed_dict=input_dict).flatten()
       else:
         data[i - offset, :] = sess.run(self.mfcc_, feed_dict=input_dict).flatten()
       label_index = self.word_to_index[sample['label']]

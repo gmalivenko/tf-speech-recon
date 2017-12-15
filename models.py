@@ -29,7 +29,7 @@ import tensorflow as tf
 
 def prepare_model_settings(label_count, sample_rate, clip_duration_ms,
                            window_size_ms, window_stride_ms,
-                           dct_coefficient_count, arch_conf_file):
+                           dct_coefficient_count, arch_conf_file, features, fft_window_size):
     """Calculates common settings needed for all models.
 
     Args:
@@ -51,7 +51,13 @@ def prepare_model_settings(label_count, sample_rate, clip_duration_ms,
         spectrogram_length = 0
     else:
         spectrogram_length = 1 + int(length_minus_window / window_stride_samples)
-    fingerprint_size = dct_coefficient_count * spectrogram_length
+
+    if features == 'raw':
+        fingerprint_size = sample_rate
+    elif features == 'spectrogram':
+        fingerprint_size = spectrogram_length * fft_window_size
+    else:
+        fingerprint_size = dct_coefficient_count * spectrogram_length
 
 
     model_settings = {
@@ -219,29 +225,29 @@ class Graph(object):
                                                         num_classes=self.noise_label_count)
             self.adv_evaluation_step = tf.reduce_mean(tf.cast(self.adv_correct_prediction, tf.float32))
 
+        else:
+            with tf.name_scope('cross_entropy'):
+                self.cross_entropy_mean = tf.reduce_mean(
+                    tf.nn.softmax_cross_entropy_with_logits(
+                        labels=self.ground_truth_input, logits=net_output))
+            tf.summary.scalar('cross_entropy', self.cross_entropy_mean)
+            with tf.name_scope('train'), tf.control_dependencies(control_dependencies):
+                self.learning_rate_input = tf.placeholder(
+                    tf.float32, [], name='learning_rate_input')
+                self.optimizer = tf.train.GradientDescentOptimizer(
+                    self.learning_rate_input)
 
-        with tf.name_scope('cross_entropy'):
-            self.cross_entropy_mean = tf.reduce_mean(
-                tf.nn.softmax_cross_entropy_with_logits(
-                    labels=self.ground_truth_input, logits=net_output[0]))
-        tf.summary.scalar('cross_entropy', self.cross_entropy_mean)
-        with tf.name_scope('train'), tf.control_dependencies(control_dependencies):
-            self.learning_rate_input = tf.placeholder(
-                tf.float32, [], name='learning_rate_input')
-            self.optimizer = tf.train.GradientDescentOptimizer(
-                self.learning_rate_input)
+                self.grads_and_vars = self.optimizer.compute_gradients(self.cross_entropy_mean)
 
-            self.grads_and_vars = self.optimizer.compute_gradients(self.cross_entropy_mean)
+                self.train_step = self.optimizer.apply_gradients(self.grads_and_vars)
+                # self.train_step = self.optimizer.minimize(self.cross_entropy_mean)
 
-            self.train_step = self.optimizer.apply_gradients(self.grads_and_vars)
-            # self.train_step = self.optimizer.minimize(self.cross_entropy_mean)
-
-        self.predicted_indices = tf.argmax(net_output[0], 1)
-        self.expected_indices = tf.argmax(self.ground_truth_input, 1)
-        self.correct_prediction = tf.equal(self.predicted_indices, self.expected_indices)
-        self.confusion_matrix = tf.confusion_matrix(self.expected_indices, self.predicted_indices,
-                                                    num_classes=self.label_count)
-        self.evaluation_step = tf.reduce_mean(tf.cast(self.correct_prediction, tf.float32))
+            self.predicted_indices = tf.argmax(net_output, 1)
+            self.expected_indices = tf.argmax(self.ground_truth_input, 1)
+            self.correct_prediction = tf.equal(self.predicted_indices, self.expected_indices)
+            self.confusion_matrix = tf.confusion_matrix(self.expected_indices, self.predicted_indices,
+                                                        num_classes=self.label_count)
+            self.evaluation_step = tf.reduce_mean(tf.cast(self.correct_prediction, tf.float32))
 
     def get_arch_name(self):
       return self.model_architecture

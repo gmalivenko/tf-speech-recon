@@ -324,7 +324,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--background_volume',
         type=float,
-        default=0.5,
+        default=0.4,
         help="""\
         How loud the background noise should be, between 0 and 1.
         """)
@@ -394,7 +394,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--how_many_training_steps',
         type=str,
-        default='4000, 1000',
+        default='20000, 5000, 5000',
         help='How many training loops to run',)
     parser.add_argument(
         '--eval_step_interval',
@@ -404,7 +404,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--learning_rate',
         type=str,
-        default='0.001,0.0001',
+        default='0.001,0.0001,0.00001',
         help='How large a learning rate to use when training.')
     parser.add_argument(
         '--batch_size',
@@ -445,7 +445,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--arch_config_file',
         type=str,
-        default='model_configs/adversarial_lace_config',
+        default='model_configs/mobile_net_config',
         help='File containing model parameters')
     parser.add_argument(
         '--check_nans',
@@ -455,7 +455,7 @@ if __name__ == '__main__':
     parser.add_argument(
       '--features',
       type=str,
-      default='raw',
+      default='mfcc',
       help='Which features (mfcc, spectrogram, raw signal) should be used to train the model')
     parser.add_argument(
       '--fft_window_size',
