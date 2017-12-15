@@ -98,12 +98,7 @@ def main(_):
   # downloading.
 
   model_settings = prepare_model_settings(FLAGS.arch_config_file)
-      # len(input_data.prepare_words_list(FLAGS.wanted_words.split(','))),
-      # FLAGS.sample_rate, FLAGS.clip_duration_ms, FLAGS.window_size_ms,
-      # FLAGS.window_stride_ms, FLAGS.dct_coefficient_count, FLAGS.arch_config_file, FLAGS.features, FLAGS.fft_window_size)
-
   audio_processor = AudioProcessor(FLAGS.data_url, FLAGS.data_dir, model_settings)
-
   model_settings['noise_label_count'] = audio_processor.background_label_count() + 1
 
   graph = Graph(model_settings)
@@ -123,8 +118,6 @@ def main(_):
         '--how_many_training_steps and --learning_rate must be equal length '
         'lists, but are %d and %d long instead' % (len(training_steps_list),
                                                    len(learning_rates_list)))
-
-  # graph.create_model(model_settings)
 
   tf.summary.scalar('accuracy', graph.evaluation_step)
 
@@ -209,10 +202,6 @@ def main(_):
                     (training_step, learning_rate_value, adv_train_accuracy * 100,
                      adv_cross_entropy_value))
 
-
-
-    # print(ws_output.shape)
-    #
     train_writer.add_summary(train_summary, training_step)
 
     is_last_step = (training_step == training_steps_max)
@@ -221,7 +210,6 @@ def main(_):
       total_accuracy = 0
       total_conf_matrix = None
       for i in xrange(0, set_size, batch_size):
-      # print(i, set_size)
         validation_fingerprints, validation_ground_truth, noise_labels = (
             audio_processor.get_data(FLAGS.batch_size, i, model_settings, 0.0,
                                      0.0, 0, 'validation', sess))
@@ -232,7 +220,7 @@ def main(_):
             feed_dict={
                 graph.fingerprint_input: validation_fingerprints,
                 graph.ground_truth_input: validation_ground_truth,
-                graph.is_training: 1,
+                graph.is_training: 0,
                 graph.dropout_prob: 1.0
             })
         validation_writer.add_summary(validation_summary, training_step)
@@ -256,7 +244,6 @@ def main(_):
 
   # vrs = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='weighted_sum')
 
-
   set_size = audio_processor.set_size('testing')
   tf.logging.info('set_size=%d', set_size)
   total_accuracy = 0
@@ -270,7 +257,7 @@ def main(_):
         feed_dict={
             graph.fingerprint_input: test_fingerprints,
             graph.ground_truth_input: test_ground_truth,
-            graph.is_training: 1,
+            graph.is_training: 0,
             graph.dropout_prob: 1.0
         })
     batch_size = min(batch_size, set_size - i)
@@ -283,22 +270,6 @@ def main(_):
   tf.logging.info('Final test accuracy = %.1f%% (N=%d)' % (total_accuracy * 100,
                                                             set_size))
 
-  # # for i in xrange(0, 2000, FLAGS.batch_size):
-  # test_data, ground_truth = audio_processor.get_test_data(100, 0, model_settings, 0.0, 0.0, 0, 'testing', '/work/asr2/bozheniuk/tmp/speech_dataset/left/', sess)
-  # prediction, eval, con_mat, l_out = sess.run(
-  #     [predicted_indices, evaluation_step, confusion_matrix, layers],
-  #     feed_dict={
-  #         fingerprint_input: test_data,
-  #         ground_truth_input: ground_truth,
-  #         phase: 1,
-  #         dropout_prob: 1.0
-  #     })
-  # #
-  # # for key, value in l_out.items():
-  # #   print(key, value.shape)
-  # # print(prediction)
-  # print(eval)
-  # print(con_mat)
 
 if __name__ == '__main__':
     #TODO: all parameters to config file
