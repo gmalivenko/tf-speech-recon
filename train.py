@@ -212,7 +212,7 @@ def main(_):
       for i in xrange(0, set_size, batch_size):
         validation_fingerprints, validation_ground_truth, noise_labels = (
             audio_processor.get_data(batch_size, i, model_settings, 0.0,
-                                     0.0, 0, 'validation', sess))
+                                     0.0, 0, 'validation', sess, features=model_settings['features']))
         # Run a validation step and capture training summaries for TensorBoard
         # with the `merged` op.
         validation_summary, validation_accuracy, conf_matrix = sess.run(

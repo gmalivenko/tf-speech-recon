@@ -14,9 +14,6 @@ from tensorflow.contrib.framework.python.ops import audio_ops as contrib_audio
 from tensorflow.python.ops import io_ops
 
 
-
-
-
 class SubmissionProcessor(object):
 
   def __init__(self, FLAGS):
@@ -39,8 +36,8 @@ class SubmissionProcessor(object):
     #     break
 
 
-  def write_to_csv(self, human_string):
-      with open('./lace.csv', 'w') as csvfile:
+  def write_to_csv(self, human_string, target_file_name='baseline_submission'):
+      with open('./' + target_file_name + '.csv', 'w') as csvfile:
           spamwriter = csv.writer(csvfile)
           spamwriter.writerow(['fname'] + ['label'])
           for i in range(len(human_string)):
