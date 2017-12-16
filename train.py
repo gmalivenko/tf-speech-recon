@@ -131,6 +131,8 @@ def main(_):
   train_writer = tf.summary.FileWriter(FLAGS.summaries_dir + '/train',
                                        sess.graph)
   validation_writer = tf.summary.FileWriter(FLAGS.summaries_dir + '/validation')
+  #
+  # print('Checkpoi', os.path.join(FLAGS.checkpoint_dir, graph.get_arch_name() + '.ckpt')
 
   tf.global_variables_initializer().run()
 
