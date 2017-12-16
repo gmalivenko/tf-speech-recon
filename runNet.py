@@ -51,7 +51,7 @@ def main(_):
   indices = []
   sample_num = 158538
   for i in xrange(0, sample_num, FLAGS.batch_size):
-    tf.logging.info('Progress: %.1f%%', float(100 * i)/float(sample_num))
+    tf.logging.info('Progress: %.2f%%', float(100 * i)/float(sample_num))
     test_fingerprints = audio_processor.get_test_data(FLAGS.batch_size, i, model_settings, sess)
     batch_indices = sess.run([graph.predicted_indices], feed_dict={graph.fingerprint_input: test_fingerprints,
                                                                    graph.is_training: True})
@@ -62,7 +62,7 @@ def main(_):
   human_string = []
   for i in indices:
     human_string.append(labels[i])
-  audio_processor.write_to_csv(human_string)
+  audio_processor.write_to_csv(human_string, 'crnn-')
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()

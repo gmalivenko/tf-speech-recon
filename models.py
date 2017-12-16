@@ -116,6 +116,8 @@ class Graph(object):
         return self.create_low_latency_conv_model()
       elif self.model_architecture == 'low_latency_svdf':
         return self.create_low_latency_svdf_model()
+      elif self.model_architecture == 'crnn':
+        return self.create_crnn_model()
       else:
         raise Exception('model_architecture argument "' + self.model_architecture +
                         '" not recognized, should be one of "single_fc", "conv",' +
@@ -179,7 +181,7 @@ class Graph(object):
             with tf.name_scope('train'), tf.control_dependencies(control_dependencies):
                 self.learning_rate_input = tf.placeholder(
                     tf.float32, [], name='learning_rate_input')
-                self.optimizer = tf.train.GradientDescentOptimizer(
+                self.optimizer = tf.train.AdamOptimizer(
                     self.learning_rate_input)
 
                 self.grads_and_vars = self.optimizer.compute_gradients(self.cross_entropy_mean)
@@ -207,10 +209,8 @@ class Graph(object):
       saver = tf.train.Saver()
       saver.restore(sess, start_checkpoint)
 
-
     def is_adversarial(self):
         return int(self.model_settings['is_adversarial'])
-
 
     def create_single_fc_model(self):
       """Builds a model with a single hidden fully-connected layer.
@@ -250,7 +250,6 @@ class Graph(object):
       self.logits = tf.matmul(self.fingerprint_input, weights) + bias
 
       return
-
 
     def create_lace_model(self):
 
@@ -790,9 +789,6 @@ class Graph(object):
       #   return final_fc
       return
 
-
-
-
     def create_low_latency_conv_model(self, fingerprint_input, model_settings,
                                       is_training):
       """Builds a convolutional model with low compute requirements.
@@ -903,7 +899,6 @@ class Graph(object):
         return final_fc, dropout_prob
       else:
         return final_fc
-
 
     def create_low_latency_svdf_model(self, fingerprint_input, model_settings,
                                       is_training, runtime_settings):
@@ -1087,3 +1082,83 @@ class Graph(object):
         return final_fc, dropout_prob
       else:
         return final_fc
+
+    def create_crnn_model(self):
+      if self.is_training is not None:
+        self.dropout_prob = tf.placeholder(tf.float32, name='dropout_prob')
+
+      filter_width = int(self.model_settings['filter_width'])
+      filter_height = int(self.model_settings['filter_height'])
+      filter_count = int(self.model_settings['filter_count'])
+      weights = tf.Variable(tf.truncated_normal([filter_height, filter_width, 1, filter_count], stddev=0.01))
+      bias = tf.Variable(tf.zeros([filter_count]))
+      conv_out = tf.nn.conv2d(self.fingerprint_4d, weights, [1, 2, 1, 1], 'VALID') + bias
+
+      batch_mean, batch_var = tf.nn.moments(conv_out, [0])
+      scale = tf.Variable(tf.ones([filter_count]))
+      beta = tf.Variable(tf.zeros([filter_count]))
+      conv = tf.nn.batch_normalization(conv_out, batch_mean, batch_var, beta, scale, 1e-3)
+      conv_relu = tf.nn.relu(conv)
+
+
+      conv_shape = conv_relu.get_shape()
+      conv_output_width = conv_shape[2]
+      conv_output_height = conv_shape[1]
+      flattened_conv = tf.reshape(conv_relu, [-1, conv_output_height, conv_output_width * filter_count])
+
+      if self.is_training is not None:
+        rnn_input = tf.nn.dropout(flattened_conv, self.dropout_prob)
+      else:
+        rnn_input = flattened_conv
+
+
+      gru_cell = tf.contrib.rnn.GRUCell(num_units=60)
+      cells = []
+      num_layers = int(self.model_settings['num_gru_layers'])
+      num_units = int(self.model_settings['num_gru_units'])
+      for _ in range(num_layers):
+        cell = tf.contrib.rnn.GRUCell(num_units=num_units)
+        cells.append(cell)
+      multi_layer_gru_cell = tf.contrib.rnn.MultiRNNCell(cells)
+      outputs, output_states = tf.nn.bidirectional_dynamic_rnn(multi_layer_gru_cell, multi_layer_gru_cell,
+                                                               inputs=rnn_input, dtype=tf.float32, time_major=False)
+      rnn_output = tf.concat([outputs[0], outputs[1]], 2)
+
+      rnn_relu = tf.nn.relu(rnn_output)
+
+      rnn_result_height = rnn_relu.get_shape()[1]
+      rnn_result_width = rnn_relu.get_shape()[2]
+      rnn_result_flattened = tf.reshape(rnn_relu, [-1, rnn_result_width * rnn_result_height])
+
+      if self.is_training is not None:
+        fc_input = tf.nn.dropout(rnn_result_flattened, self.dropout_prob)
+      else:
+        fc_input = rnn_result_flattened
+
+
+      num_fc_units = int(self.model_settings['num_units_in_fc_layer'])
+      fc_weights = tf.Variable(
+        tf.truncated_normal([tf.cast(rnn_result_width * rnn_result_height, tf.int32), num_fc_units], stddev=0.01))
+      fc_bias = tf.Variable(tf.zeros([num_fc_units]))
+      fc_layer_out = tf.matmul(fc_input, fc_weights) + fc_bias
+
+      fc_batch_mean, fc_batch_var = tf.nn.moments(fc_layer_out, [0])
+      fc_scale = tf.Variable(tf.ones([1]))
+      fc_beta = tf.Variable(tf.zeros([1]))
+      fc_layer = tf.nn.batch_normalization(fc_layer_out, fc_batch_mean, fc_batch_var, fc_beta, fc_scale, 1e-3)
+
+      relu_fc = tf.nn.relu(fc_layer)
+
+      if self.is_training is not None:
+        final_fc_input = tf.nn.dropout(relu_fc, self.dropout_prob)
+      else:
+        final_fc_input = relu_fc
+
+      fc_shape = final_fc_input.get_shape()
+      label_count = self.model_settings['label_count']
+      final_fc_weights = tf.Variable(tf.truncated_normal([tf.cast(fc_shape[1], tf.int32), label_count], stddev=0.01))
+      final_fc_bias = tf.Variable(tf.zeros([label_count]))
+      final_fc = tf.matmul(final_fc_input, final_fc_weights) + final_fc_bias
+
+      return final_fc
+
