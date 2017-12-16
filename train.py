@@ -222,12 +222,12 @@ def main(_):
             feed_dict={
                 graph.fingerprint_input: validation_fingerprints,
                 graph.ground_truth_input: validation_ground_truth,
-                graph.is_training: 0,
+                graph.is_training: 1,
                 graph.dropout_prob: 1.0
             })
         validation_writer.add_summary(validation_summary, training_step)
-        batch_size = min(batch_size, set_size - i)
-        total_accuracy += (validation_accuracy * batch_size) / set_size
+        bs = min(batch_size, set_size - i)
+        total_accuracy += (validation_accuracy * bs) / set_size
         if total_conf_matrix is None:
           total_conf_matrix = conf_matrix
         else:
@@ -259,11 +259,11 @@ def main(_):
         feed_dict={
             graph.fingerprint_input: test_fingerprints,
             graph.ground_truth_input: test_ground_truth,
-            graph.is_training: 0,
+            graph.is_training: 1,
             graph.dropout_prob: 1.0
         })
-    batch_size = min(batch_size, set_size - i)
-    total_accuracy += (test_accuracy * batch_size) / set_size
+    bs = min(batch_size, set_size - i)
+    total_accuracy += (test_accuracy * bs) / set_size
     if total_conf_matrix is None:
       total_conf_matrix = conf_matrix
     else:
@@ -415,7 +415,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--arch_config_file',
         type=str,
-        default='model_configs/lace_config',
+        default='model_configs/dummy_conf',
         help='File containing model parameters')
     parser.add_argument(
         '--check_nans',

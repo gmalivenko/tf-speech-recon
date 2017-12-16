@@ -181,7 +181,7 @@ class Graph(object):
             with tf.name_scope('train'), tf.control_dependencies(control_dependencies):
                 self.learning_rate_input = tf.placeholder(
                     tf.float32, [], name='learning_rate_input')
-                self.optimizer = tf.train.AdamOptimizer(
+                self.optimizer = tf.train.GradientDescentOptimizer(
                     self.learning_rate_input)
 
                 self.grads_and_vars = self.optimizer.compute_gradients(self.cross_entropy_mean)
@@ -238,18 +238,17 @@ class Graph(object):
         placeholder.
       """
       fingerprint_size = self.model_settings['fingerprint_size']
-      self.fingerprint_input = tf.placeholder(
-          tf.float32, [None, fingerprint_size], name='fingerprint_input')
+      # self.fingerprint_input = tf.placeholder(
+      #     tf.float32, [None, fingerprint_size], name='fingerprint_input')
 
-      self.dropout_prob = tf.placeholder(tf.float32, name='dropout_prob')
       fingerprint_size = self.model_settings['fingerprint_size']
-      label_count = self.model_settings['label_count']
+
       weights = tf.Variable(
-          tf.truncated_normal([fingerprint_size, label_count], stddev=0.001))
-      bias = tf.Variable(tf.zeros([label_count]))
+          tf.truncated_normal([fingerprint_size, self.label_count], stddev=0.001))
+      bias = tf.Variable(tf.zeros([self.label_count]))
       self.logits = tf.matmul(self.fingerprint_input, weights) + bias
 
-      return
+      return self.logits
 
     def create_lace_model(self):
 

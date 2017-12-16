@@ -53,7 +53,7 @@ dct_coefficient_count = 40
 
 [train-parameters]
 #How many training loops to run.
-how_many_training_steps = 20000, 5000, 5000
+how_many_training_steps = 20000, 5000, 5500
 
 #How large a learning rate to use when training.
 learning_rate = 0.001, 0.0001, 0.00001

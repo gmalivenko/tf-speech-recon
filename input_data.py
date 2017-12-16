@@ -583,6 +583,7 @@ class AudioProcessor(object):
         data[i - offset, :] = sess.run(self.mfcc_, feed_dict=input_dict).flatten()
       label_index = self.word_to_index[sample['label']]
       labels[i - offset, label_index] = 1
+      # print(sample)
     return data, labels, noise_labels
 
 
