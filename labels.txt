@@ -1,5 +1,5 @@
-_silence_
-_unknown_
+silence
+unknown
 yes
 no
 up
