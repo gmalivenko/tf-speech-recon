@@ -53,6 +53,7 @@ class Graph(object):
         self.is_training = tf.placeholder(tf.bool, name='is_training')
         self.dropout_prob = tf.placeholder(tf.float32, name='dropout_prob')
 
+
         self.w = {}
         self.layer = {}
 
@@ -1182,9 +1183,6 @@ class Graph(object):
       default_init = tf.contrib.layers.xavier_initializer()
       fingerprint_3d = tf.expand_dims(self.fingerprint_input, -1)
 
-      if self.is_training:
-        dropout_prob = tf.placeholder(tf.float32, name='dropout_prob')
-
       def res_block(input, filter_length, filter_count, rate, block):
         with tf.variable_scope(name_or_scope='block_%d_%d' % (block, rate)):
           kernel_shape = [filter_length, filter_count, filter_count]
@@ -1226,7 +1224,4 @@ class Graph(object):
         final_fc_bias = tf.get_variable('b_softmax', [label_count], tf.float32, initializer=tf.constant_initializer(0))
         final_fc = tf.matmul(global_pool, final_fc_weights) + final_fc_bias
 
-      if self.is_training:
-        return final_fc, dropout_prob
-      else:
-        return final_fc
+      return final_fc
