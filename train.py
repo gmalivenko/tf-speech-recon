@@ -222,7 +222,7 @@ def main(_):
             feed_dict={
                 graph.fingerprint_input: validation_fingerprints,
                 graph.ground_truth_input: validation_ground_truth,
-                graph.is_training: 1,
+                graph.is_training: 0,
                 graph.dropout_prob: 1.0
             })
         validation_writer.add_summary(validation_summary, training_step)
@@ -259,7 +259,7 @@ def main(_):
         feed_dict={
             graph.fingerprint_input: test_fingerprints,
             graph.ground_truth_input: test_ground_truth,
-            graph.is_training: 1,
+            graph.is_training: 0,
             graph.dropout_prob: 1.0
         })
     bs = min(batch_size, set_size - i)

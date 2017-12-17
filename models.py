@@ -25,6 +25,7 @@ import configparser
 import math
 
 import tensorflow as tf
+import tensorflow.contrib.slim as slim
 
 
 class Graph(object):
@@ -286,13 +287,19 @@ class Graph(object):
                     activation_fn=None,
                     padding='SAME',
                     name='l' + index + 'c1')
-                self.layer['l' + index + 'bn1'] = tf.contrib.layers.batch_norm(
-                    self.layer['l' + index + 'c1'],
-                    center=True, scale=True,
-                    is_training=self.is_training)
-                self.layer['l' + index + 'y1'] = tf.nn.relu(self.layer['l' + index + 'bn1'])
+                # self.layer['l' + index + 'bn1'] = tf.contrib.layers.batch_norm(
+                #     self.layer['l' + index + 'c1'],
+                #     center=True, scale=True,
+                #     is_training=self.is_training)
+                self.layer['l' + index + 'bn1'] = slim.batch_norm(self.layer['l' + index + 'c1'],
+                                                                 is_training=self.is_training,
+                                                                 decay=0.96,
+                                                                 updates_collections=None,
+                                                                 activation_fn=tf.nn.relu,
+                                                                 scope='l' + index + 'bn1')
+                # self.layer['l' + index + 'y1'] = tf.nn.relu(self.layer['l' + index + 'bn1'])
                 self.layer['l' + index + 'c2'], self.w['l' + index + 'c2w'] = conv2d(
-                    self.layer['l' + index + 'y1'],
+                    self.layer['l' + index + 'bn1'],
                     current_channel_num,
                     [3, 3], [1, 1],
                     self.initializer,
@@ -302,11 +309,18 @@ class Graph(object):
                 self.layer['l' + index + 'p'] = tf.add(
                     self.layer['l' + index + 'c2'],
                     self.layer[prev_output])
-                self.layer['l' + index + 'bn2'] = tf.contrib.layers.batch_norm(
-                    self.layer['l' + index + 'p'],
-                    center=True, scale=True,
-                    is_training=self.is_training)
-                self.layer['l' + index + 'o'] = tf.nn.relu(self.layer['l' + index + 'bn2'])
+                self.layer['l' + index + 'bn2'] = slim.batch_norm(self.layer['l' + index + 'p'],
+                                                                 is_training=self.is_training,
+                                                                 decay=0.96,
+                                                                 updates_collections=None,
+                                                                 activation_fn=tf.nn.relu,
+                                                                 scope='l' + index + 'bn2')
+                # self.layer['l' + index + 'bn2'] = tf.contrib.layers.batch_norm(
+                #     self.layer['l' + index + 'p'],
+                #     center=True, scale=True,
+                #     is_training=self.is_training)
+                # self.layer['l' + index + 'o'] = tf.nn.relu(self.layer['l' + index + 'bn2'])
+                self.layer['l' + index + 'o'] = self.layer['l' + index + 'bn2']
                 last_layer = self.layer['l' + index + 'o']
 
             self.layer['output_' + str(i + 1)], self.w['output_' + str(i + 1)] = elementwise_mat_prod(
