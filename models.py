@@ -182,7 +182,7 @@ class Graph(object):
             with tf.name_scope('train'), tf.control_dependencies(control_dependencies):
                 self.learning_rate_input = tf.placeholder(
                     tf.float32, [], name='learning_rate_input')
-                self.optimizer = tf.train.GradientDescentOptimizer(
+                self.optimizer = tf.train.AdamOptimizer(
                     self.learning_rate_input)
 
                 self.grads_and_vars = self.optimizer.compute_gradients(self.cross_entropy_mean)
