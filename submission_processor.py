@@ -36,12 +36,13 @@ class SubmissionProcessor(object):
     #     break
 
 
-  def write_to_csv(self, human_string, target_file_name='baseline_submission'):
-      with open('./' + target_file_name + '.csv', 'w') as csvfile:
+  def write_to_csv(self, human_string, index, target_file_name='baseline_submission'):
+      with open('./' + target_file_name + '.csv', 'a') as csvfile:
           spamwriter = csv.writer(csvfile)
-          spamwriter.writerow(['fname'] + ['label'])
+          if index == 0:
+              spamwriter.writerow(['fname'] + ['label'])
           for i in range(len(human_string)):
-              spamwriter.writerow([self.data_index[i].rsplit('/', 1)[1]] + [human_string[i]])
+              spamwriter.writerow([self.data_index[index + i].rsplit('/', 1)[1]] + [human_string[i]])
 
 
   def get_test_data(self, how_many, offset, model_settings, sess):

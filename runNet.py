@@ -11,7 +11,7 @@ import numpy as np
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 
-import input_data
+from input_data import *
 import submission_processor
 from models import *
 from tensorflow.python.platform import gfile
@@ -31,17 +31,17 @@ def main(_):
   # Start a new TensorFlow session.
   sess = tf.InteractiveSession()
 
-  graph = Graph()
-
-  model_settings = prepare_model_settings(
-      len(input_data.prepare_words_list(FLAGS.wanted_words.split(','))),
-      FLAGS.sample_rate, FLAGS.clip_duration_ms, FLAGS.window_size_ms,
-      FLAGS.window_stride_ms, FLAGS.dct_coefficient_count, FLAGS.arch_config_file)
+  model_settings = prepare_model_settings(FLAGS.arch_config_file)
+  # model_settings = prepare_model_settings(
+  #     len(input_data.prepare_words_list(FLAGS.wanted_words.split(','))),
+  #     FLAGS.sample_rate, FLAGS.clip_duration_ms, FLAGS.window_size_ms,
+  #     FLAGS.window_stride_ms, FLAGS.dct_coefficient_count, FLAGS.arch_config_file)
   audio_processor = submission_processor.SubmissionProcessor(FLAGS)
 
   model_settings['noise_label_count'] = 11
 
-  graph.create_model(model_settings)
+  graph = Graph(model_settings)
+  # graph.create_model(model_settings)
   tf.global_variables_initializer().run()
   graph.load_variables_from_checkpoint(sess, FLAGS.start_checkpoint)
 
@@ -52,12 +52,12 @@ def main(_):
   sample_num = 158538
   for i in xrange(0, sample_num, FLAGS.batch_size):
     tf.logging.info('Progress: %.2f%%', float(100 * i)/float(sample_num))
-    test_fingerprints = audio_processor.get_test_data(FLAGS.batch_size, i, model_settings, sess)
+    test_fingerprints = audio_processor.get_test_data(int(model_settings['batch_size']), i, model_settings, sess)
     batch_indices = sess.run([graph.predicted_indices], feed_dict={graph.fingerprint_input: test_fingerprints,
                                                                    graph.is_training: True})
     # print(logits_)
-    indices.extend(batch_indices)
-    # audio_processor.write_to_csv(labels[batch_indices], i)
+    # indices.extend(batch_indices)
+    audio_processor.write_to_csv(labels[batch_indices], i, target_file_name=graph.get_arch_name())
   #
   human_string = []
   for i in indices:
