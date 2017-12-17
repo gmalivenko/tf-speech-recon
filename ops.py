@@ -1,5 +1,6 @@
 import tensorflow as tf
 from tensorflow.contrib.layers.python.layers import initializers
+import tensorflow.contrib.slim as slim
 
 def clipped_error(x):
   # Huber loss
@@ -100,18 +101,34 @@ def depthwise_separable_conv(input_, output_size, is_training, kernel=(3, 3), st
         filter_dw = tf.get_variable('filter_dw', kernel_shape, tf.float32, initializer=initializer)
 
         depthwise_conv = tf.nn.depthwise_conv2d(input_, filter_dw, stride_shape, padding=padding)
-        batch_norm_1 = tf.layers.batch_normalization(depthwise_conv, training=is_training)
-        relu_1 = tf.nn.relu(batch_norm_1)
+
+        batch_norm1 = slim.batch_norm(depthwise_conv,
+                                     is_training=is_training,
+                                     decay=0.96,
+                                     updates_collections=None,
+                                     activation_fn=tf.nn.relu,
+                                     scope='dw_batch_norm')
+        # batch_norm_1 = tf.layers.batch_normalization(depthwise_conv, momentum=0.96, training=is_training)
+        # relu_1 = tf.nn.relu(batch_norm_1)
 
         pointwise_kernel_shape = [1, 1, shape[-1], output_size]
         pointwise_stride_shape = [1, 1, 1, 1]
 
         filter_pw = tf.get_variable('filter_pw', pointwise_kernel_shape, tf.float32, initializer=initializer)
 
-        pointwise_conv = tf.nn.conv2d(relu_1, filter_pw, pointwise_stride_shape, padding=padding)
-        batch_norm_2 = tf.layers.batch_normalization(pointwise_conv, training=is_training)
-        relu_2 = tf.nn.relu(batch_norm_2)
-        out = relu_2
+        pointwise_conv = tf.nn.conv2d(batch_norm1, filter_pw, pointwise_stride_shape, padding=padding)
+
+        batch_norm2 = slim.batch_norm(pointwise_conv,
+                                      is_training=is_training,
+                                      decay=0.96,
+                                      updates_collections=None,
+                                      activation_fn=tf.nn.relu,
+                                      scope='pw_batch_norm')
+
+
+        # batch_norm_2 = tf.layers.batch_normalization(pointwise_conv, training=is_training)
+        # relu_2 = tf.nn.relu(batch_norm_2)
+        out = batch_norm2
 
     return out, filter_dw, filter_pw
 
