@@ -518,7 +518,11 @@ class AudioProcessor(object):
       sample_count = max(0, min(how_many, len(candidates) - offset))
 
     # Data and labels will be populated and returned.
-    data = np.zeros((sample_count, model_settings['fingerprint_size']))
+    if features=='raw':
+      data = np.zeros((sample_count, model_settings['sample_rate']))
+    else:
+      data = np.zeros((sample_count, model_settings['fingerprint_size']))
+
     labels = np.zeros((sample_count, model_settings['label_count']))
     noise_labels = np.zeros((sample_count, self.background_label_count() + 1))
     desired_samples = model_settings['desired_samples']
