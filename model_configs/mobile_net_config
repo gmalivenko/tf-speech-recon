@@ -53,10 +53,10 @@ dct_coefficient_count = 40
 
 [train-parameters]
 #How many training loops to run.
-how_many_training_steps = 20000, 5000, 5500
+how_many_training_steps = 20000, 10000, 5000, 5000
 
 #How large a learning rate to use when training.
-learning_rate = 0.001, 0.0001, 0.00001
+learning_rate = 0.001, 0.0001, 0.00001, 0.000001
 
 #How many items to train with at once
 batch_size = 100
