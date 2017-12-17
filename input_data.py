@@ -82,8 +82,8 @@ def prepare_model_settings(arch_conf_file):
         model_settings['how_many_training_steps'] = [model_settings['how_many_training_steps']]
         model_settings['learning_rate'] = [model_settings['learning_rate']]
 
-
-    sample_rate = int(model_settings['sample_rate'])
+    max_sample_rate_factor = 1.24
+    sample_rate = int(max_sample_rate_factor * model_settings['sample_rate'])
     clip_duration_ms = int(model_settings['clip_duration_ms'])
     window_size_ms = int(model_settings['window_size_ms'])
     window_stride_ms = int(model_settings['window_stride_ms'])
@@ -438,11 +438,11 @@ class AudioProcessor(object):
     desired_samples = model_settings['desired_samples']
     self.wav_filename_placeholder_ = tf.placeholder(tf.string, [])
     wav_loader = io_ops.read_file(self.wav_filename_placeholder_)
-    wav_decoder = contrib_audio.decode_wav(
+    self.wav_decoder = contrib_audio.decode_wav(
         wav_loader, desired_channels=1, desired_samples=desired_samples)
     # Allow the audio sample's volume to be adjusted.
     self.foreground_volume_placeholder_ = tf.placeholder(tf.float32, [])
-    scaled_foreground = tf.multiply(wav_decoder.audio,
+    scaled_foreground = tf.multiply(self.wav_decoder.audio,
                                     self.foreground_volume_placeholder_)
     # Shift the sample's start position, and pad any gaps with zeros.
     self.time_shift_padding_placeholder_ = tf.placeholder(tf.int32, [2, 2])
@@ -463,16 +463,23 @@ class AudioProcessor(object):
     background_add = tf.add(background_mul, sliced_foreground)
     self.pcm_array_ = tf.clip_by_value(background_add, -1.0, 1.0)
     # Run the spectrogram and MFCC ops to get a 2D 'fingerprint' of the audio.
+    self.window_size_samples_placeholder_ = tf.placeholder(tf.int32, [])
+    self.window_stride_samples_placeholder_ = tf.placeholder(tf.int32, [])
+
     self.spectrogram_ = contrib_audio.audio_spectrogram(
         self.pcm_array_,
         window_size=model_settings['window_size_samples'],
         stride=model_settings['window_stride_samples'],
         magnitude_squared=True)
+
+    self.sample_rate_multiplier_placeholder = tf.placeholder(tf.float32, [])
+    stretched_sample_rate = tf.cast(tf.multiply(self.sample_rate_multiplier_placeholder,
+                                                tf.cast(self.wav_decoder.sample_rate, tf.float32)),
+                                                tf.int32)
     self.mfcc_ = contrib_audio.mfcc(
         self.spectrogram_,
-        wav_decoder.sample_rate,
+        stretched_sample_rate,
         dct_coefficient_count=model_settings['dct_coefficient_count'])
-
 
   def set_size(self, mode):
     """Calculates the number of samples in the dataset partition.
@@ -569,6 +576,15 @@ class AudioProcessor(object):
         background_volume = 0
       input_dict[self.background_data_placeholder_] = background_reshaped
       input_dict[self.background_volume_placeholder_] = background_volume
+
+      #stretching the signal
+      if mode == 'training':
+          sample_rate_multiplier = np.random.choice([0.81, 0.93, 1.07, 1.23], 1)[0]
+      else:
+          sample_rate_multiplier = 1.0
+
+      input_dict[self.sample_rate_multiplier_placeholder] = sample_rate_multiplier
+
       # If we want silence, mute out the main sample but leave the background.
       if sample['label'] == SILENCE_LABEL:
         input_dict[self.foreground_volume_placeholder_] = 0
@@ -583,7 +599,6 @@ class AudioProcessor(object):
         data[i - offset, :] = sess.run(self.mfcc_, feed_dict=input_dict).flatten()
       label_index = self.word_to_index[sample['label']]
       labels[i - offset, label_index] = 1
-      # print(sample)
     return data, labels, noise_labels
 
 
