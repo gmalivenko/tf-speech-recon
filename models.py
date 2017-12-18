@@ -1191,15 +1191,18 @@ class Graph(object):
           filter = tf.nn.convolution(input, filter_weights, 'SAME', dilation_rate=[rate])
           gate = tf.nn.convolution(input, gate_weights, 'SAME', dilation_rate=[rate])
           filter_out = tf.nn.tanh(filter)
-          filter_bn = tf.layers.batch_normalization(filter_out, training=self.is_training)
+          # filter_bn = tf.layers.batch_normalization(filter_out, training=self.is_training)
+          filter_bn = slim.batch_norm(filter_out,is_training=self.is_training,decay=0.96,updates_collections=None)
           gate_out = tf.nn.relu(gate)
-          gate_bn = tf.layers.batch_normalization(gate_out, training=self.is_training)
+          # gate_bn = tf.layers.batch_normalization(gate_out, training=self.is_training)
+          gate_bn = slim.batch_norm(gate_out,is_training=self.is_training,decay=0.96,updates_collections=None)
           out = filter_bn * gate_bn
 
           outWeights = tf.get_variable('w_out', [1, filter_count, filter_count], tf.float32, initializer=default_init)
           out = tf.nn.convolution(out, outWeights, 'SAME')
           out = tf.tanh(out)
-          out_bn = tf.layers.batch_normalization(out, training=self.is_training)
+          # out_bn = tf.layers.batch_normalization(out, training=self.is_training)
+          out_bn = slim.batch_norm(out,is_training=self.is_training,decay=0.96,updates_collections=None)
           res = out_bn + input
 
         return res, out
@@ -1207,7 +1210,8 @@ class Graph(object):
       with tf.variable_scope('input_conv'):
         input_weights = tf.get_variable('w_inp', [1, 1, 128], tf.float32, initializer=default_init)
         res = tf.tanh(tf.nn.convolution(fingerprint_3d, input_weights, 'SAME'))
-        res = tf.layers.batch_normalization(res, training=self.is_training)
+        # res = tf.layers.batch_normalization(res, training=self.is_training)
+        res = slim.batch_norm(res,is_training=self.is_training,decay=0.96,updates_collections=None)
       skip = 0
       for r in [1, 2, 4, 8, 16]:
         res, s = res_block(res, 7, 128, r, 0)
@@ -1215,7 +1219,8 @@ class Graph(object):
       with tf.variable_scope('pre_pooling_conv'):
         skip_sum_weights = tf.get_variable('w_pre_pooling', [1, 128, 128], tf.float32, initializer=default_init)
         pre_pooling_conv = tf.tanh(tf.nn.convolution(skip, skip_sum_weights, 'SAME'))
-        pre_pooling_conv_bn = tf.layers.batch_normalization(pre_pooling_conv, training=self.is_training)
+        # pre_pooling_conv_bn = tf.layers.batch_normalization(pre_pooling_conv, training=self.is_training)
+        pre_pooling_conv_bn = slim.batch_norm(pre_pooling_conv,is_training=self.is_training,decay=0.96,updates_collections=None)
       global_pool = tf.reduce_mean(pre_pooling_conv_bn, axis=1)
 
       label_count = self.model_settings['label_count']
