@@ -252,7 +252,7 @@ def main(_):
   total_conf_matrix = None
   for i in xrange(0, set_size, batch_size):
     test_fingerprints, test_ground_truth, noise_labels = audio_processor.get_data(
-        batch_size, i, model_settings, 0.0, 0.0, 0, 'testing', sess)
+        batch_size, i, model_settings, 0.0, 0.0, 0, 'testing', sess, features=model_settings['features'])
     # test_fingerprints, test_ground_truth = audio_processor.get_unprocessed_data(FLAGS.batch_size, model_settings, 'training')
     test_accuracy, conf_matrix = sess.run(
         [graph.evaluation_step, graph.confusion_matrix],
