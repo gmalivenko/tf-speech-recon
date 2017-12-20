@@ -54,15 +54,15 @@ def main(_):
     tf.logging.info('Progress: %.2f%%', float(100 * i)/float(sample_num))
     test_fingerprints = audio_processor.get_test_data(int(model_settings['batch_size']), i, model_settings, sess)
     batch_indices = sess.run([graph.predicted_indices], feed_dict={graph.fingerprint_input: test_fingerprints,
-                                                                   graph.is_training: True})
+                                                                   graph.is_training: 0})
     # print(logits_)
     # indices.extend(batch_indices)
     audio_processor.write_to_csv(labels[batch_indices], i, target_file_name=graph.get_arch_name())
   #
-  human_string = []
-  for i in indices:
-    human_string.append(labels[i])
-  audio_processor.write_to_csv(human_string, 'crnn-')
+  # human_string = []
+  # for i in indices:
+  #   human_string.append(labels[i])
+  # audio_processor.write_to_csv(human_string, 'lace_adam')
 
 if __name__ == '__main__':
   parser = argparse.ArgumentParser()

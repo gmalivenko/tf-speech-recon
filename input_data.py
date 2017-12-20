@@ -27,6 +27,7 @@ import re
 import sys
 import tarfile
 import configparser
+import csv
 
 import numpy as np
 from six.moves import urllib
@@ -46,6 +47,10 @@ UNKNOWN_WORD_INDEX = 1
 BACKGROUND_NOISE_DIR_NAME = '_background_noise_'
 RANDOM_SEED = 12345
 
+
+def load_labels(filename):
+  """Read in labels, one label per line."""
+  return [line.rstrip() for line in tf.gfile.GFile(filename)]
 
 def prepare_model_settings(arch_conf_file):
     """Calculates common settings needed for all models.
@@ -224,9 +229,11 @@ def save_wav_file(filename, wav_data, sample_rate):
 class AudioProcessor(object):
   """Handles loading, partitioning, and preparing audio training data."""
 
-  def __init__(self, data_url, data_dir, model_settings):
+  def __init__(self, data_url, data_dir, kaggle_dir, model_settings):
     self.data_dir = data_dir
+    self.kaggle_dir = kaggle_dir
     # self.maybe_download_and_extract_dataset(data_url, data_dir)
+    self.model_settings = model_settings
     self.prepare_data_index(model_settings['silence_percentage'],
                             model_settings['unknown_percentage'],
                             model_settings['wanted_words'],
@@ -307,7 +314,7 @@ class AudioProcessor(object):
     wanted_words_index = {}
     for index, wanted_word in enumerate(wanted_words):
       wanted_words_index[wanted_word] = index + 2
-    self.data_index = {'validation': [], 'testing': [], 'training': []}
+    self.data_index = {'validation': [], 'testing': [], 'training': [], 'kaggle_test_data': []}
     unknown_index = {'validation': [], 'testing': [], 'training': []}
     all_words = {}
     # Look through all the subfolders to find audio samples
@@ -361,6 +368,12 @@ class AudioProcessor(object):
       else:
         self.word_to_index[word] = UNKNOWN_WORD_INDEX
     self.word_to_index[SILENCE_LABEL] = SILENCE_INDEX
+
+    kaggle_test_path = self.kaggle_dir
+    search_path = os.path.join(kaggle_test_path, '*.wav')
+
+    for wav_path in gfile.Glob(search_path):
+      self.data_index['kaggle_test_data'].append({'label': 'up', 'file': wav_path})
 
     # self.data_index['testing'] = np.random.permutation(self.data_index['testing'])
 
@@ -601,6 +614,24 @@ class AudioProcessor(object):
       labels[i - offset, label_index] = 1
     return data, labels, noise_labels
 
+  def assign_label(self, how_many, offset, mode, labels):
+      candidates = self.data_index[mode]
+      if how_many == -1:
+          sample_count = len(candidates)
+      else:
+          sample_count = max(0, min(how_many, len(candidates) - offset))
+
+      for i in xrange(offset, offset + sample_count):
+          self.data_index[mode][i]['label'] = labels[i - offset]
+          print(self.data_index[mode][i])
+
+  def save_labels(self, mode, file_name):
+      with open('./' + file_name + '.csv', 'w') as csvfile:
+          spamwriter = csv.writer(csvfile)
+          spamwriter.writerow(['fname'] + ['label'])
+
+          for sample in self.data_index[mode]:
+              spamwriter.writerow([sample['file'].rsplit('/', 1)[1]] + [sample['label']])
 
   def get_test_data(self, how_many, offset, model_settings, background_frequency,
                background_volume_range, time_shift, mode, test_path, sess):
