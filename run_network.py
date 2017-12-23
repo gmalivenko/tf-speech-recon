@@ -32,16 +32,11 @@ def main(_):
   sess = tf.InteractiveSession()
 
   model_settings = prepare_model_settings(FLAGS.arch_config_file)
-  # model_settings = prepare_model_settings(
-  #     len(input_data.prepare_words_list(FLAGS.wanted_words.split(','))),
-  #     FLAGS.sample_rate, FLAGS.clip_duration_ms, FLAGS.window_size_ms,
-  #     FLAGS.window_stride_ms, FLAGS.dct_coefficient_count, FLAGS.arch_config_file)
   audio_processor = submission_processor.SubmissionProcessor(FLAGS)
 
   model_settings['noise_label_count'] = 11
 
   graph = Graph(model_settings)
-  # graph.create_model(model_settings)
   tf.global_variables_initializer().run()
   graph.load_variables_from_checkpoint(sess, FLAGS.start_checkpoint)
 

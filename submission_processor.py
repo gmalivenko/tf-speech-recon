@@ -18,8 +18,6 @@ class SubmissionProcessor(object):
 
   def __init__(self, FLAGS):
     self.data_dir = FLAGS.data_dir
-    # self.path = '/home/vitaly/competition/test/audio/'
-    # self.path = '/home/vitaly/PycharmProjects/tf-speech-recon/data/train/audio/left/'
     self.prepare_data_index()
 
   def prepare_data_index(self):
@@ -29,11 +27,6 @@ class SubmissionProcessor(object):
         for row in spamreader:
             self.data_index.append(self.data_dir + row[0])
         self.data_index = self.data_index[1:]
-
-
-    # for (dir_path, dir_names, file_names) in os.walk(self.path):
-    #     self.data_index.extend(file_names)
-    #     break
 
 
   def write_to_csv(self, human_string, index, target_file_name='baseline_submission'):

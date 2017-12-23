@@ -68,7 +68,6 @@ def prepare_model_settings(arch_conf_file):
     parser.read(arch_conf_file)
 
     for section in parser.sections():
-        # print(section)
         for k in parser[section]:
             try:
                 model_settings[k] = float(parser[section][k])
@@ -473,7 +472,6 @@ class AudioProcessor(object):
         wav_decoder.sample_rate,
         dct_coefficient_count=model_settings['dct_coefficient_count'])
 
-
   def set_size(self, mode):
     """Calculates the number of samples in the dataset partition.
 
@@ -588,7 +586,7 @@ class AudioProcessor(object):
 
 
   def get_test_data(self, how_many, offset, model_settings, background_frequency,
-               background_volume_range, time_shift, mode, test_path, sess):
+               background_volume_range, time_shift, mode, test_path, sess, features='mfcc'):
     candidates = []
     for (dir_path, dir_names, file_names) in os.walk(test_path):
       candidates.extend(file_names)
@@ -652,9 +650,15 @@ class AudioProcessor(object):
 
       input_dict[self.foreground_volume_placeholder_] = 1
       # Run the graph to produce the output audio.
-      sc_f = sess.run(self.mfcc_, feed_dict=input_dict)
-      # print(tf.shape(sc_f))
-      data[i - offset, :] = sc_f.flatten()
+      # sc_f = sess.run(self.mfcc_, feed_dict=input_dict)
+      # # print(tf.shape(sc_f))
+      # data[i - offset, :] = sc_f.flatten()
+      if features == "spectrogram":
+        data[i - offset, :] = sess.run(self.spectrogram_, feed_dict=input_dict).flatten()
+      elif features == "raw":
+        data[i - offset, :] = sess.run(self.pcm_array_, feed_dict=input_dict).flatten()
+      else:
+        data[i - offset, :] = sess.run(self.mfcc_, feed_dict=input_dict).flatten()
 
       label_index = self.word_to_index['left']
       labels[i - offset, label_index] = 1
@@ -701,9 +705,11 @@ class AudioProcessor(object):
           input_dict[foreground_volume_placeholder] = 0
         else:
           input_dict[foreground_volume_placeholder] = 1
+
         sc_f = sess.run(scaled_foreground, feed_dict=input_dict).flatten()
-        print(tf.shape(sc_f))
+        # print(tf.shape(sc_f))
         data[i, :] = sc_f.flatten()
+
         label_index = self.word_to_index[sample['label']]
         labels.append(words_list[label_index])
     return data, labels
