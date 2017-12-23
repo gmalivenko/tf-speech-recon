@@ -119,6 +119,8 @@ class Graph(object):
         return self.create_low_latency_svdf_model()
       elif self.model_architecture == 'crnn':
         return self.create_crnn_model()
+      elif self.model_architecture == 'conv1d':
+        return self.create_conv1d_model()
       else:
         raise Exception('model_architecture argument "' + self.model_architecture +
                         '" not recognized, should be one of "single_fc", "conv",' +
@@ -1174,4 +1176,28 @@ class Graph(object):
       final_fc = tf.matmul(final_fc_input, final_fc_weights) + final_fc_bias
 
       return final_fc
+
+    def create_conv1d_model(self):
+      fingerprint_3d = tf.reshape(self.fingerprint_input, [-1, self.fingerprint_size, 1])  # [batch, in_width, in_channels]
+
+      # conv blocks
+      block_1 = conv_pooling_block(fingerprint_3d, 80, 4, 64, 1, self.is_training, self.dropout_prob, 'block_1', 'max', 4)
+      block_2 = conv_pooling_block(block_1, 3, 1, 64, 1, self.is_training, self.dropout_prob, 'block_2', 'max', 4)
+      block_3 = conv_pooling_block(block_2, 3, 1, 128, 1, self.is_training, self.dropout_prob, 'block_3', 'max', 4)
+      block_4 = conv_pooling_block(block_3, 3, 1, 256, 1, self.is_training, self.dropout_prob, 'block_4', 'max', 4)
+      block_5 = conv_pooling_block(block_4, 3, 1, 512, 1, self.is_training, self.dropout_prob, 'block_5', 'max', 4)
+      block_6 = conv_pooling_block(block_5, 3, 1, 1024, 1, self.is_training, self.dropout_prob, 'block_6', 'avg', 4)
+
+      with tf.variable_scope('fc_layer'):
+        fc_input = block_6
+
+        label_count = self.model_settings['label_count']
+        final_fc_weights = tf.Variable(
+          tf.truncated_normal([tf.cast(fc_input.get_shape()[1], tf.int32), label_count], stddev=0.01))
+        final_fc_bias = tf.Variable(tf.zeros([label_count]))
+        final_fc = tf.matmul(fc_input, final_fc_weights) + final_fc_bias
+        print(final_fc)
+
+        return final_fc
+
 

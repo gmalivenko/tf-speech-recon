@@ -623,7 +623,7 @@ class AudioProcessor(object):
 
       for i in xrange(offset, offset + sample_count):
           self.data_index[mode][i]['label'] = labels[i - offset]
-          print(self.data_index[mode][i])
+          # print(self.data_index[mode][i])
 
   def save_labels(self, mode, file_name):
       with open('./' + file_name + '.csv', 'w') as csvfile:

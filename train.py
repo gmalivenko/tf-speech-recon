@@ -157,124 +157,124 @@ def main(_):
 
   batch_size = int(model_settings['batch_size'])
 
-  # # Training loop.
-  # training_steps_max = np.sum(training_steps_list)
-  # for training_step in xrange(start_step, training_steps_max + 1):
-  #   # Figure out what the current learning rate is.
-  #   training_steps_sum = 0
-  #   for i in range(len(training_steps_list)):
-  #     training_steps_sum += training_steps_list[i]
-  #     if training_step <= training_steps_sum:
-  #       learning_rate_value = learning_rates_list[i]
-  #       break
-  #   # Pull the audio samples we'll use for training.
-  #   train_fingerprints, train_ground_truth, train_noise_labels = audio_processor.get_data(
-  #       batch_size, 0, model_settings, model_settings['background_frequency'],
-  #       model_settings['background_volume'], time_shift_samples, 'training', sess, features=model_settings['features'])
-  #   # Run the graph with this batch of training data.
-  #   train_summary, train_accuracy, cross_entropy_value, _, _ = sess.run(
-  #       [
-  #           merged_summaries, graph.evaluation_step, graph.cross_entropy_mean, graph.train_step,
-  #           increment_global_step
-  #       ],
-  #       feed_dict={
-  #           graph.fingerprint_input: train_fingerprints,
-  #           graph.ground_truth_input: train_ground_truth,
-  #           graph.learning_rate_input: learning_rate_value,
-  #           graph.is_training: 1,
-  #           graph.dropout_prob: 0.5
-  #       })
-  #
-  #   tf.logging.info('Main Step #%d: rate %f, accuracy %.1f%%, cross entropy %f' %
-  #                   (training_step, learning_rate_value, train_accuracy * 100,
-  #                    cross_entropy_value))
-  #
-  #   if graph.is_adversarial():
-  #       adv_train_accuracy, adv_cross_entropy_value, _ = sess.run(
-  #           [
-  #               graph.adv_evaluation_step, graph.adv_cross_entropy_mean, graph.adv_train_step
-  #           ],
-  #           feed_dict={
-  #               graph.fingerprint_input: train_fingerprints,
-  #               graph.noise_labels: train_noise_labels,
-  #               graph.adv_learning_rate_input: learning_rate_value,
-  #               graph.is_training: 1,
-  #               graph.dropout_prob: 0.5
-  #           })
-  #       tf.logging.info('Adversarial Step #%d: rate %f, accuracy %.1f%%, cross entropy %f' %
-  #                   (training_step, learning_rate_value, adv_train_accuracy * 100,
-  #                    adv_cross_entropy_value))
-  #
-  #   train_writer.add_summary(train_summary, training_step)
-  #
-  #   is_last_step = (training_step == training_steps_max)
-  #   if (training_step % model_settings['eval_step_interval']) == 0 or is_last_step:
-  #     set_size = audio_processor.set_size('validation')
-  #     total_accuracy = 0
-  #     total_conf_matrix = None
-  #     for i in xrange(0, set_size, batch_size):
-  #       validation_fingerprints, validation_ground_truth, noise_labels = (
-  #           audio_processor.get_data(batch_size, i, model_settings, 0.0,
-  #                                    0.0, 0, 'validation', sess, features=model_settings['features']))
-  #       # Run a validation step and capture training summaries for TensorBoard
-  #       # with the `merged` op.
-  #       validation_summary, validation_accuracy, conf_matrix = sess.run(
-  #           [merged_summaries, graph.evaluation_step, graph.confusion_matrix],
-  #           feed_dict={
-  #               graph.fingerprint_input: validation_fingerprints,
-  #               graph.ground_truth_input: validation_ground_truth,
-  #               graph.is_training: 0,
-  #               graph.dropout_prob: 1.0
-  #           })
-  #       validation_writer.add_summary(validation_summary, training_step)
-  #       bs = min(batch_size, set_size - i)
-  #       total_accuracy += (validation_accuracy * bs) / set_size
-  #       if total_conf_matrix is None:
-  #         total_conf_matrix = conf_matrix
-  #       else:
-  #         total_conf_matrix += conf_matrix
-  #     tf.logging.info('Confusion Matrix:\n %s' % (total_conf_matrix))
-  #     tf.logging.info('Step %d: Validation accuracy = %.1f%% (N=%d)' %
-  #                     (training_step, total_accuracy * 100, set_size))
-  #
-  #   # Save the model checkpoint periodically.
-  #   if (training_step % model_settings['save_step_interval'] == 0 or
-  #       training_step == training_steps_max):
-  #     checkpoint_path = os.path.join(FLAGS.checkpoint_dir,
-  #                                    graph.get_arch_name() + '.ckpt')
-  #     tf.logging.info('Saving to "%s-%d"', checkpoint_path, training_step)
-  #     saver.save(sess, checkpoint_path, global_step=training_step)
+  # Training loop.
+  training_steps_max = np.sum(training_steps_list)
+  for training_step in xrange(start_step, training_steps_max + 1):
+    # Figure out what the current learning rate is.
+    training_steps_sum = 0
+    for i in range(len(training_steps_list)):
+      training_steps_sum += training_steps_list[i]
+      if training_step <= training_steps_sum:
+        learning_rate_value = learning_rates_list[i]
+        break
+    # Pull the audio samples we'll use for training.
+    train_fingerprints, train_ground_truth, train_noise_labels = audio_processor.get_data(
+        batch_size, 0, model_settings, model_settings['background_frequency'],
+        model_settings['background_volume'], time_shift_samples, 'training', sess, features=model_settings['features'])
+    # Run the graph with this batch of training data.
+    train_summary, train_accuracy, cross_entropy_value, _, _ = sess.run(
+        [
+            merged_summaries, graph.evaluation_step, graph.cross_entropy_mean, graph.train_step,
+            increment_global_step
+        ],
+        feed_dict={
+            graph.fingerprint_input: train_fingerprints,
+            graph.ground_truth_input: train_ground_truth,
+            graph.learning_rate_input: learning_rate_value,
+            graph.is_training: 1,
+            graph.dropout_prob: 0.5
+        })
 
-  # vrs = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='weighted_sum')
+    tf.logging.info('Main Step #%d: rate %f, accuracy %.1f%%, cross entropy %f' %
+                    (training_step, learning_rate_value, train_accuracy * 100,
+                     cross_entropy_value))
 
-  # set_size = audio_processor.set_size('testing')
-  # tf.logging.info('set_size=%d', set_size)
-  # total_accuracy = 0
-  # total_conf_matrix = None
-  # for i in xrange(0, set_size, batch_size):
-  #   test_fingerprints, test_ground_truth, noise_labels = audio_processor.get_data(
-  #       batch_size, i, model_settings, 0.0, 0.0, 0, 'testing', sess)
-  #   # test_fingerprints, test_ground_truth = audio_processor.get_unprocessed_data(FLAGS.batch_size, model_settings, 'training')
-  #   test_accuracy, conf_matrix = sess.run(
-  #       [graph.evaluation_step, graph.confusion_matrix],
-  #       feed_dict={
-  #           graph.fingerprint_input: test_fingerprints,
-  #           graph.ground_truth_input: test_ground_truth,
-  #           graph.is_training: 0,
-  #           graph.dropout_prob: 1.0
-  #       })
-  #   bs = min(batch_size, set_size - i)
-  #   total_accuracy += (test_accuracy * bs) / set_size
-  #   if total_conf_matrix is None:
-  #     total_conf_matrix = conf_matrix
-  #   else:
-  #     total_conf_matrix += conf_matrix
-  # tf.logging.info('Confusion Matrix:\n %s' % (total_conf_matrix))
-  # tf.logging.info('Final test accuracy = %.1f%% (N=%d)' % (total_accuracy * 100,
-  #                                                           set_size))
+    if graph.is_adversarial():
+        adv_train_accuracy, adv_cross_entropy_value, _ = sess.run(
+            [
+                graph.adv_evaluation_step, graph.adv_cross_entropy_mean, graph.adv_train_step
+            ],
+            feed_dict={
+                graph.fingerprint_input: train_fingerprints,
+                graph.noise_labels: train_noise_labels,
+                graph.adv_learning_rate_input: learning_rate_value,
+                graph.is_training: 1,
+                graph.dropout_prob: 0.5
+            })
+        tf.logging.info('Adversarial Step #%d: rate %f, accuracy %.1f%%, cross entropy %f' %
+                    (training_step, learning_rate_value, adv_train_accuracy * 100,
+                     adv_cross_entropy_value))
+
+    train_writer.add_summary(train_summary, training_step)
+
+    is_last_step = (training_step == training_steps_max)
+    if (training_step % model_settings['eval_step_interval']) == 0 or is_last_step:
+      set_size = audio_processor.set_size('validation')
+      total_accuracy = 0
+      total_conf_matrix = None
+      for i in xrange(0, set_size, batch_size):
+        validation_fingerprints, validation_ground_truth, noise_labels = (
+            audio_processor.get_data(batch_size, i, model_settings, 0.0,
+                                     0.0, 0, 'validation', sess, features=model_settings['features']))
+        # Run a validation step and capture training summaries for TensorBoard
+        # with the `merged` op.
+        validation_summary, validation_accuracy, conf_matrix = sess.run(
+            [merged_summaries, graph.evaluation_step, graph.confusion_matrix],
+            feed_dict={
+                graph.fingerprint_input: validation_fingerprints,
+                graph.ground_truth_input: validation_ground_truth,
+                graph.is_training: 0,
+                graph.dropout_prob: 1.0
+            })
+        validation_writer.add_summary(validation_summary, training_step)
+        bs = min(batch_size, set_size - i)
+        total_accuracy += (validation_accuracy * bs) / set_size
+        if total_conf_matrix is None:
+          total_conf_matrix = conf_matrix
+        else:
+          total_conf_matrix += conf_matrix
+      tf.logging.info('Confusion Matrix:\n %s' % (total_conf_matrix))
+      tf.logging.info('Step %d: Validation accuracy = %.1f%% (N=%d)' %
+                      (training_step, total_accuracy * 100, set_size))
+
+    # Save the model checkpoint periodically.
+    if (training_step % model_settings['save_step_interval'] == 0 or
+        training_step == training_steps_max):
+      checkpoint_path = os.path.join(FLAGS.checkpoint_dir,
+                                     graph.get_arch_name() + '.ckpt')
+      tf.logging.info('Saving to "%s-%d"', checkpoint_path, training_step)
+      saver.save(sess, checkpoint_path, global_step=training_step)
+
+  vrs = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='weighted_sum')
+
+  set_size = audio_processor.set_size('testing')
+  tf.logging.info('set_size=%d', set_size)
+  total_accuracy = 0
+  total_conf_matrix = None
+  for i in xrange(0, set_size, batch_size):
+    test_fingerprints, test_ground_truth, noise_labels = audio_processor.get_data(
+        batch_size, i, model_settings, 0.0, 0.0, 0, 'testing', sess)
+    # test_fingerprints, test_ground_truth = audio_processor.get_unprocessed_data(FLAGS.batch_size, model_settings, 'training')
+    test_accuracy, conf_matrix = sess.run(
+        [graph.evaluation_step, graph.confusion_matrix],
+        feed_dict={
+            graph.fingerprint_input: test_fingerprints,
+            graph.ground_truth_input: test_ground_truth,
+            graph.is_training: 0,
+            graph.dropout_prob: 1.0
+        })
+    bs = min(batch_size, set_size - i)
+    total_accuracy += (test_accuracy * bs) / set_size
+    if total_conf_matrix is None:
+      total_conf_matrix = conf_matrix
+    else:
+      total_conf_matrix += conf_matrix
+  tf.logging.info('Confusion Matrix:\n %s' % (total_conf_matrix))
+  tf.logging.info('Final test accuracy = %.1f%% (N=%d)' % (total_accuracy * 100,
+                                                            set_size))
 
 
-
+  # Testing
   set_size = audio_processor.set_size('kaggle_test_data')
   tf.logging.info('set_size=%d', set_size)
   path_to_labels = FLAGS.labels
@@ -295,7 +295,7 @@ def main(_):
       audio_processor.assign_label(batch_size, i, 'kaggle_test_data', labels[prediction])
 
 
-  audio_processor.save_labels('kaggle_test_data', graph.get_arch_name())
+  audio_processor.save_labels('kaggle_test_data', 'lace_128_stretching')
 
 
 
