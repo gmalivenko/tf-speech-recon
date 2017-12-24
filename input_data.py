@@ -588,7 +588,7 @@ class AudioProcessor(object):
 
 
   def get_test_data(self, how_many, offset, model_settings, background_frequency,
-               background_volume_range, time_shift, mode, test_path, sess):
+               background_volume_range, time_shift, mode, test_path, sess, features='mfcc'):
     candidates = []
     for (dir_path, dir_names, file_names) in os.walk(test_path):
       candidates.extend(file_names)
@@ -652,7 +652,12 @@ class AudioProcessor(object):
 
       input_dict[self.foreground_volume_placeholder_] = 1
       # Run the graph to produce the output audio.
-      sc_f = sess.run(self.mfcc_, feed_dict=input_dict)
+      if features == "spectrogram":
+        sc_f = sess.run(self.spectrogram_, feed_dict=input_dict)
+      elif features == "raw":
+        sc_f = sess.run(self.pcm_array_, feed_dict=input_dict)
+      else:
+        sc_f = sess.run(self.mfcc_, feed_dict=input_dict)
       # print(tf.shape(sc_f))
       data[i - offset, :] = sc_f.flatten()
 

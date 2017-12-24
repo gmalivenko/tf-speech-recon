@@ -34,18 +34,15 @@ class SubmissionProcessor(object):
     # for (dir_path, dir_names, file_names) in os.walk(self.path):
     #     self.data_index.extend(file_names)
     #     break
-
-
-  def write_to_csv(self, human_string, index, target_file_name='baseline_submission'):
-      with open('./' + target_file_name + '.csv', 'a') as csvfile:
+  def write_to_csv(self, human_string, target_file_name='baseline_submission'):
+      with open('./' + target_file_name + '.csv', 'w') as csvfile:
           spamwriter = csv.writer(csvfile)
-          if index == 0:
-              spamwriter.writerow(['fname'] + ['label'])
+          spamwriter.writerow(['fname'] + ['label'])
           for i in range(len(human_string)):
-              spamwriter.writerow([self.data_index[index + i].rsplit('/', 1)[1]] + [human_string[i]])
+            spamwriter.writerow([self.data_index[i].rsplit('/', 1)[1]] + [human_string[i]])
 
 
-  def get_test_data(self, how_many, offset, model_settings, sess):
+  def get_test_data(self, how_many, offset, model_settings, sess, features='mfcc'):
 
     candidates = self.data_index
     if how_many == -1:
@@ -72,8 +69,14 @@ class SubmissionProcessor(object):
     # print('filenames: ', candidates[offset:offset + sample_count])
     # print(sample_count)
 
+
     for i in range(offset, offset + sample_count):
         input_dict = {wav_filename_placeholder : candidates[i]}
-        data[i - offset, :] = sess.run(mfcc, feed_dict=input_dict).flatten()
+        if features == "spectrogram":
+          data[i - offset, :] = sess.run(spectrogram, feed_dict=input_dict).flatten()
+        elif features == "raw":
+          data[i - offset, :] = sess.run(wav_decoder.audio, feed_dict=input_dict).flatten()
+        else:
+          data[i - offset, :] = sess.run(mfcc, feed_dict=input_dict).flatten()
 
     return data
