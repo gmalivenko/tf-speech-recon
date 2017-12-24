@@ -108,6 +108,7 @@ def prepare_model_settings(arch_conf_file):
         fingerprint_size = dct_coefficient_count * spectrogram_length
 
     model_settings['wanted_words'] = model_settings['wanted_words'].split(',')
+    #model_settings['model_size_info'] = list(map(int, model_settings['model_size_info'].split(',')))
     model_settings['desired_samples'] = desired_samples
     model_settings['window_size_samples'] = window_size_samples
     model_settings['window_stride_samples'] = int(window_stride_samples)
