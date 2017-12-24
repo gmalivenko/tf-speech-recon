@@ -18,8 +18,6 @@ class SubmissionProcessor(object):
 
   def __init__(self, FLAGS):
     self.data_dir = FLAGS.data_dir
-    # self.path = '/home/vitaly/competition/test/audio/'
-    # self.path = '/home/vitaly/PycharmProjects/tf-speech-recon/data/train/audio/left/'
     self.prepare_data_index()
 
   def prepare_data_index(self):

@@ -37,7 +37,6 @@ def main(_):
   model_settings['noise_label_count'] = 11
 
   graph = Graph(model_settings)
-  # graph.create_model(model_settings)
   tf.global_variables_initializer().run()
   graph.load_variables_from_checkpoint(sess, FLAGS.start_checkpoint)
 
