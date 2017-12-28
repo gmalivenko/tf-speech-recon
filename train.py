@@ -75,6 +75,7 @@ import os.path
 import sys
 
 import numpy as np
+import pandas as pd
 from six.moves import xrange  # pylint: disable=redefined-builtin
 import tensorflow as tf
 
@@ -85,6 +86,9 @@ from tensorflow.python.platform import gfile
 
 FLAGS = None
 
+def load_labels(filename):
+  """Read in labels, one label per line."""
+  return [line.rstrip() for line in tf.gfile.GFile(filename)]
 
 def main(_):
   # We want to see all the logging messages for this tutorial.
@@ -269,8 +273,20 @@ def main(_):
     else:
       total_conf_matrix += conf_matrix
   tf.logging.info('Confusion Matrix:\n %s' % (total_conf_matrix))
-  tf.logging.info('Final test accuracy = %.1f%% (N=%d)' % (total_accuracy * 100,
-                                                            set_size))
+  tf.logging.info('Final test accuracy = %.1f%% (N=%d)' % (total_accuracy * 100, set_size))
+
+  # Evaluation metric
+  true_positives = np.diag(total_conf_matrix)
+  false_positives = np.sum(total_conf_matrix, axis=0) - true_positives
+  false_negatives = np.sum(total_conf_matrix, axis=1) - true_positives
+  precision = (true_positives / (true_positives + false_positives)).squeeze()
+  recall = (true_positives / (true_positives + false_negatives)).squeeze()
+  F1_score = (2 * (precision * recall) / (precision + recall)).squeeze()
+  final_statistics = np.stack([precision, recall, F1_score], axis=1)
+  path_to_labels = FLAGS.labels
+  labels = load_labels(path_to_labels)
+  stat_df = pd.DataFrame(final_statistics, index=labels, columns=['precision', 'recall', 'F1_score'])
+  stat_df.to_csv(model_settings['arch'] + '_metric.csv', index=True, header=True, sep='\t')
 
 
 if __name__ == '__main__':
