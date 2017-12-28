@@ -283,7 +283,7 @@ def main(_):
   recall = (true_positives / (true_positives + false_negatives)).squeeze()
   F1_score = (2 * (precision * recall) / (precision + recall)).squeeze()
   final_statistics = np.stack([precision, recall, F1_score], axis=1)
-  path_to_labels = FLAGS.labels
+  path_to_labels = model_settings['path_to_labels']
   labels = load_labels(path_to_labels)
   stat_df = pd.DataFrame(final_statistics, index=labels, columns=['precision', 'recall', 'F1_score'])
   stat_df.to_csv(model_settings['arch'] + '_metric.csv', index=True, header=True, sep='\t')

@@ -2,8 +2,11 @@
 
 Implementation of the dilated convolutional neural network for the kaggle speech commands recognition challenge.
 Current best model achieves 96.3% on the Google's test dataset and 86% on the leaderboard.
-Run model_configs/best_wave_net.config to replicate the results.
+
+Use model_configs/best_wave_net.config to replicate the results.
+
 Idea of the architecture is based on the original wave-net paper: https://arxiv.org/pdf/1609.03499.pdf
+
 Implementation follows the logic of speech-to-text-wave-net from https://github.com/buriburisuri/speech-to-text-wavenet
 
 Some ideas for improvement:
