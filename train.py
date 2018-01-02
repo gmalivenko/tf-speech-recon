@@ -250,30 +250,30 @@ def main(_):
 
   # vrs = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='weighted_sum')
 
-  set_size = audio_processor.set_size('testing')
-  tf.logging.info('set_size=%d', set_size)
-  total_accuracy = 0
-  total_conf_matrix = None
-  for i in xrange(0, set_size, batch_size):
-    test_fingerprints, test_ground_truth, noise_labels = audio_processor.get_data(
-        batch_size, i, model_settings, 0.0, 0.0, 0, 'testing', sess, features=model_settings['features'])
-    # test_fingerprints, test_ground_truth = audio_processor.get_unprocessed_data(FLAGS.batch_size, model_settings, 'training')
-    test_accuracy, conf_matrix = sess.run(
-        [graph.evaluation_step, graph.confusion_matrix],
-        feed_dict={
-            graph.fingerprint_input: test_fingerprints,
-            graph.ground_truth_input: test_ground_truth,
-            graph.is_training: 0,
-            graph.dropout_prob: 1.0
-        })
-    bs = min(batch_size, set_size - i)
-    total_accuracy += (test_accuracy * bs) / set_size
-    if total_conf_matrix is None:
-      total_conf_matrix = conf_matrix
-    else:
-      total_conf_matrix += conf_matrix
-  tf.logging.info('Confusion Matrix:\n %s' % (total_conf_matrix))
-  tf.logging.info('Final test accuracy = %.1f%% (N=%d)' % (total_accuracy * 100, set_size))
+  # set_size = audio_processor.set_size('testing')
+  # tf.logging.info('set_size=%d', set_size)
+  # total_accuracy = 0
+  # total_conf_matrix = None
+  # for i in xrange(0, set_size, batch_size):
+  #   test_fingerprints, test_ground_truth, noise_labels = audio_processor.get_data(
+  #       batch_size, i, model_settings, 0.0, 0.0, 0, 'testing', sess, features=model_settings['features'])
+  #   # test_fingerprints, test_ground_truth = audio_processor.get_unprocessed_data(FLAGS.batch_size, model_settings, 'training')
+  #   test_accuracy, conf_matrix = sess.run(
+  #       [graph.evaluation_step, graph.confusion_matrix],
+  #       feed_dict={
+  #           graph.fingerprint_input: test_fingerprints,
+  #           graph.ground_truth_input: test_ground_truth,
+  #           graph.is_training: 0,
+  #           graph.dropout_prob: 1.0
+  #       })
+  #   bs = min(batch_size, set_size - i)
+  #   total_accuracy += (test_accuracy * bs) / set_size
+  #   if total_conf_matrix is None:
+  #     total_conf_matrix = conf_matrix
+  #   else:
+  #     total_conf_matrix += conf_matrix
+  # tf.logging.info('Confusion Matrix:\n %s' % (total_conf_matrix))
+  # tf.logging.info('Final test accuracy = %.1f%% (N=%d)' % (total_accuracy * 100, set_size))
 
   # Evaluation metric
   true_positives = np.diag(total_conf_matrix)
