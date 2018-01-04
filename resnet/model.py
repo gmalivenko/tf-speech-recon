@@ -96,8 +96,8 @@ class Bottleneck(nn.Module):
 class ResNet(nn.Module):
 
     def __init__(self, block, layers, num_classes=1000):
-        self.inplanes = 64
         super(ResNet, self).__init__()
+        self.inplanes = 64
         self.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3,
                                bias=False)
         self.bn1 = nn.BatchNorm2d(64)
@@ -107,6 +107,18 @@ class ResNet(nn.Module):
         self.layer2 = self._make_layer(block, 128, layers[1], stride=2)
         self.layer3 = self._make_layer(block, 256, layers[2], stride=2)
         self.layer4 = self._make_layer(block, 512, layers[3], stride=2)
+
+        self.inplanes = 64
+        self.conv1_mfcc = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3,
+                               bias=False)
+        self.bn1_mfcc = nn.BatchNorm2d(64)
+        self.relu_mfcc = nn.ReLU(inplace=True)
+        self.maxpool_mfcc = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.layer1_mfcc = self._make_layer(block, 64, layers[0])
+        self.layer2_mfcc = self._make_layer(block, 128, layers[1], stride=2)
+        self.layer3_mfcc = self._make_layer(block, 256, layers[2], stride=2)
+        self.layer4_mfcc = self._make_layer(block, 512, layers[3], stride=2)
+
         self.fc = nn.Linear(9728, num_classes)
         self.softmax = nn.Softmax()
 
@@ -148,15 +160,15 @@ class ResNet(nn.Module):
 
         spectrogram_pool = spectrogram_x
 
-        mfcc_x = self.conv1(mfcc)
-        mfcc_x = self.bn1(mfcc_x)
-        mfcc_x = self.relu(mfcc_x)
-        mfcc_x = self.maxpool(mfcc_x)
+        mfcc_x = self.conv1_mfcc(mfcc)
+        mfcc_x = self.bn1_mfcc(mfcc_x)
+        mfcc_x = self.relu_mfcc(mfcc_x)
+        mfcc_x = self.maxpool_mfcc(mfcc_x)
 
-        mfcc_x = self.layer1(mfcc_x)
-        mfcc_x = self.layer2(mfcc_x)
-        mfcc_x = self.layer3(mfcc_x)
-        mfcc_x = self.layer4(mfcc_x)
+        mfcc_x = self.layer1_mfcc(mfcc_x)
+        mfcc_x = self.layer2_mfcc(mfcc_x)
+        mfcc_x = self.layer3_mfcc(mfcc_x)
+        mfcc_x = self.layer4_mfcc(mfcc_x)
 
         mfcc_pool = mfcc_x
 

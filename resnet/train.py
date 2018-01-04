@@ -16,20 +16,21 @@ def train(args):
 
     # model = RNNModel(num_classes=len(ds.labels))
     model = resnet18(pretrained=False, num_classes=12)
-
+    criterion = torch.nn.BCELoss()
+    
     if args.use_cuda:
         model = model.cuda()
+        criterion = criterion.cuda()
 
-    criterion = torch.nn.BCELoss()
     model_optimizer = torch.optim.Adadelta(model.parameters(), lr=1e-2, eps=1e-6)
 
     train_loader = data_utils.DataLoader(
         ds, batch_size=32, shuffle=True,
-        num_workers=0)
+        num_workers=4)
 
     test_loader = data_utils.DataLoader(
         test_ds, batch_size=128, shuffle=False,
-        num_workers=0)
+        num_workers=2)
 
     best_AP = 0
 
@@ -46,6 +47,7 @@ def train(args):
                 classes = classes.cuda()
             output = model(spectrogram, mfcc)
             loss = criterion(output, classes)  # ones = true
+            print(loss)
 
             model.zero_grad()
             loss.backward()
