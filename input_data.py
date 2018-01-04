@@ -592,7 +592,7 @@ class AudioProcessor(object):
 
       #stretching the signal
       if mode == 'training':
-          sample_rate_multiplier = np.random.choice([0.81, 0.93, 1.07, 1.23], 1)[0]
+          sample_rate_multiplier = np.random.choice([0.81, 0.93, 1.0, 1.07, 1.23], 1)[0]
       else:
           sample_rate_multiplier = 1.0
 
