@@ -23,7 +23,7 @@ def to_one_hot(x, len):
 class WavDataset(Dataset):
     """Speech dataset."""
 
-    def __init__(self, lst, augment=False):
+    def __init__(self, dataset_root, lst, augment=False):
         """
         Args:
             lst (attr_dict): txt file with params
@@ -39,7 +39,7 @@ class WavDataset(Dataset):
         self.samples = []
 
         self.noises = \
-            [c for c in glob("../data/train/audio/_background_noise_/*.wav")]
+            [c for c in glob(dataset_root + '_background_noise_/*.wav')]
 
         self.labels = [
             'yes', 'no', 'up',
@@ -68,7 +68,7 @@ class WavDataset(Dataset):
 
         if cat is not 'silence':
             directory, sample = random.choice(self.train_samples[cat])
-            (rate, sig) = wavfile.read('../data/train/audio/' + directory + '/' + sample)
+            (rate, sig) = wavfile.read(dataset_root + directory + '/' + sample)
         else:
             sig = wavfile.read(np.random.choice(self.noises))
 
@@ -114,6 +114,6 @@ class WavDataset(Dataset):
 
 
 if __name__ == '__main__':
-    ds = WavDataset(lst='../data/train/testing_list.txt')
+    ds = WavDataset(lst='../testing_list.txt')
     # print(ds[2])
     ds[1]

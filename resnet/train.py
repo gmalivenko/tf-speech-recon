@@ -1,6 +1,5 @@
 import argparse
 import numpy as np
-from attrdict import AttrDict
 from sklearn.metrics import accuracy_score, average_precision_score
 
 import torch
@@ -14,8 +13,8 @@ use_cuda = False
 
 
 def train(args):
-    ds = WavDataset(lst=args.dataset_root + 'train/validation_list.txt', augment=True)
-    test_ds = WavDataset(lst=args.dataset_root + 'train/testing_list.txt')
+    ds = WavDataset(lst=args.dataset_root + 'validation_list.txt', augment=True)
+    test_ds = WavDataset(lst=args.dataset_root + 'testing_list.txt')
 
     # model = RNNModel(num_classes=len(ds.labels))
     model = resnet18(pretrained=False, num_classes=12)
