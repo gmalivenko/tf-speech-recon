@@ -56,11 +56,17 @@ def train(args):
             epoch, np.average(np.array(losses))))
         AP = []
         ACC = []
-        for (images, classes) in test_loader:
-            images = Variable(images)
+        for (spectrogram, mfcc, classes) in test_loader:
+            spectrogram = Variable(spectrogram)
+            mfcc = Variable(mfcc)
+            classes = Variable(classes)
+
             if args.use_cuda:
-                images = images.cuda()
-            output = model(images)
+                spectrogram = spectrogram.cuda()
+                mfcc = mfcc.cuda()
+                classes = classes.cuda()
+
+            output = model(spectrogram, mfcc)
 
             y_true = classes.numpy()
             y_pred = output.cpu().data.numpy()
