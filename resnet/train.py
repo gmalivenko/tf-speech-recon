@@ -59,12 +59,10 @@ def train(args):
         for (spectrogram, mfcc, classes) in test_loader:
             spectrogram = Variable(spectrogram)
             mfcc = Variable(mfcc)
-            classes = Variable(classes)
 
             if args.use_cuda:
                 spectrogram = spectrogram.cuda()
                 mfcc = mfcc.cuda()
-                classes = classes.cuda()
 
             output = model(spectrogram, mfcc)
 
