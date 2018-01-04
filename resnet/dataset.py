@@ -29,6 +29,7 @@ class WavDataset(Dataset):
             lst (attr_dict): txt file with params
             augment (bool): use augmentation
         """
+        self.dataset_root = dataset_root
         self.augment = augment
 
         self.transform = transforms.Compose([
@@ -39,7 +40,7 @@ class WavDataset(Dataset):
         self.samples = []
 
         self.noises = \
-            [c for c in glob(dataset_root + '_background_noise_/*.wav')]
+            [c for c in glob(self.dataset_root + '_background_noise_/*.wav')]
 
         self.labels = [
             'yes', 'no', 'up',
@@ -68,7 +69,7 @@ class WavDataset(Dataset):
 
         if cat is not 'silence':
             directory, sample = random.choice(self.train_samples[cat])
-            (rate, sig) = wavfile.read(dataset_root + directory + '/' + sample)
+            (rate, sig) = wavfile.read(self.dataset_root + directory + '/' + sample)
         else:
             sig = wavfile.read(np.random.choice(self.noises))
 

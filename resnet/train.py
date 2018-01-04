@@ -11,8 +11,8 @@ from dataset import WavDataset
 
 
 def train(args):
-    ds = WavDataset(lst=args.dataset_root + 'validation_list.txt', augment=True)
-    test_ds = WavDataset(lst=args.dataset_root + 'testing_list.txt')
+    ds = WavDataset(dataset_root=args.dataset_root, lst=args.dataset_root + 'validation_list.txt', augment=True)
+    test_ds = WavDataset(dataset_root=args.dataset_root, lst=args.dataset_root + 'testing_list.txt')
 
     # model = RNNModel(num_classes=len(ds.labels))
     model = resnet18(pretrained=False, num_classes=12)
