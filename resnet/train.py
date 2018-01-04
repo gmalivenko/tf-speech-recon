@@ -9,7 +9,7 @@ from torch.autograd import Variable
 from model import resnet18
 from dataset import WavDataset
 
-use_cuda = False
+use_cuda = True
 
 
 def train(args):
