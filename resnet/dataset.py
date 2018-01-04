@@ -40,7 +40,7 @@ class WavDataset(Dataset):
         self.samples = []
 
         self.noises = \
-            [c for c in glob(self.dataset_root + '_background_noise_/*.wav')]
+            [c for c in glob(self.dataset_root + '_background_noise_mono_/*.wav')]
 
         self.labels = [
             'yes', 'no', 'up',
