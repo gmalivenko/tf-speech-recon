@@ -9,8 +9,6 @@ from torch.autograd import Variable
 from model import resnet18
 from dataset import WavDataset
 
-use_cuda = True
-
 
 def train(args):
     ds = WavDataset(lst=args.dataset_root + 'validation_list.txt', augment=True)
@@ -19,7 +17,7 @@ def train(args):
     # model = RNNModel(num_classes=len(ds.labels))
     model = resnet18(pretrained=False, num_classes=12)
 
-    if use_cuda:
+    if args.use_cuda:
         model = model.cuda()
 
     criterion = torch.nn.BCELoss()
@@ -42,7 +40,7 @@ def train(args):
             mfcc = Variable(mfcc)
             classes = Variable(classes)
 
-            if use_cuda:
+            if args.use_cuda:
                 spectrogram = spectrogram.cuda()
                 mfcc = mfcc.cuda()
                 classes = classes.cuda()
@@ -60,7 +58,7 @@ def train(args):
         ACC = []
         for (images, classes) in test_loader:
             images = Variable(images)
-            if use_cuda:
+            if args.use_cuda:
                 images = images.cuda()
             output = model(images)
 
@@ -90,5 +88,6 @@ if __name__ == '__main__':
                         help='a path to the dataset')
     parser.add_argument('--checkpoint-path', required=True,
                         help='a path to the model')
+    parser.add_argument('--use-cuda', default=False, action='store_true')
     args = parser.parse_args()
     train(args)
