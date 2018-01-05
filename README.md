@@ -13,11 +13,11 @@ The architectures, that we tried their leaderboard scores are presented in the t
 
 References:
 
-<b id="[1]">1</b> Oord A. et al. Wavenet: A generative model for raw audio //arXiv preprint arXiv:1609.03499. – 2016. [↩](#1)
+<b id="[1]">1 - </b> Oord A. et al. Wavenet: A generative model for raw audio //arXiv preprint arXiv:1609.03499. – 2016. [↩](#1)
 
-<b id="[2]">2</b> Zhang Y. et al. Hello Edge: Keyword Spotting on Microcontrollers //arXiv preprint arXiv:1711.07128. – 2017.  [↩](#2)
+<b id="[2]">2 - </b> Zhang Y. et al. Hello Edge: Keyword Spotting on Microcontrollers //arXiv preprint arXiv:1711.07128. – 2017.  [↩](#2)
 
-<b id="[3]">3</b> Dai W. et al. Very deep convolutional neural networks for raw waveforms //Acoustics, Speech and Signal Processing (ICASSP), 2017 IEEE International Conference on. – IEEE, 2017. – С. 421-425. [↩](#3)
+<b id="[3]">3 - </b> Dai W. et al. Very deep convolutional neural networks for raw waveforms //Acoustics, Speech and Signal Processing (ICASSP), 2017 IEEE International Conference on. – IEEE, 2017. – С. 421-425. [↩](#3)
 
 
 Implementation of the dilated convolutional neural network for the kaggle speech commands recognition challenge.
