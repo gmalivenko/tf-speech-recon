@@ -1,0 +1,10 @@
+.idea/
+__pycache__/
+check_points/
+test/
+train/
+launch_training_locally.sh
+launch_test_locally.sh
+launch_train_cluster.sh
+launch_test_cluster.sh
+
