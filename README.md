@@ -1,5 +1,11 @@
 # Wave-net branch of the tf-speech-recon framework
 
+The architectures, that we tried and achieved leaderboard scores are the following:
+
+| Architecture | Public score |
+| :----------- | -----------: |
+| WaveNet      | 0.86         |
+
 Implementation of the dilated convolutional neural network for the kaggle speech commands recognition challenge.
 Current best model achieves 96.3% on the Google's test dataset and 86% on the leaderboard.
 
