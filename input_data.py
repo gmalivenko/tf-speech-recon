@@ -131,7 +131,8 @@ def prepare_words_list(wanted_words):
   return [SILENCE_LABEL, UNKNOWN_WORD_LABEL] + wanted_words
 
 
-def which_set(filename, validation_percentage):
+# def which_set(filename, validation_percentage):
+def which_set(filename, validation_percentage, testing_percentage):
   """Determines which data partition the file should belong to.
 
   We want to keep files in the same training, validation, or testing sets even
@@ -172,6 +173,8 @@ def which_set(filename, validation_percentage):
                      (100.0 / MAX_NUM_WAVS_PER_CLASS))
   if percentage_hash < validation_percentage:
     result = 'validation'
+  elif percentage_hash < (testing_percentage + validation_percentage):
+    result = 'testing'
   else:
     result = 'training'
   return result
@@ -228,7 +231,9 @@ class AudioProcessor(object):
     self.prepare_data_index(model_settings['silence_percentage'],
                             model_settings['unknown_percentage'],
                             model_settings['wanted_words'],
-                            model_settings['validation_percentage'])
+                            # model_settings['validation_percentage'])
+                            model_settings['validation_percentage'],
+                            model_settings['testing_percentage'])
     self.prepare_background_data()
     self.prepare_processing_graph(model_settings)
 
@@ -274,7 +279,9 @@ class AudioProcessor(object):
     tarfile.open(filepath, 'r:gz').extractall(dest_directory)
 
   def prepare_data_index(self, silence_percentage, unknown_percentage,
-                         wanted_words, validation_percentage):
+                         # wanted_words, validation_percentage):
+                         wanted_words, validation_percentage,
+                         testing_percentage):
     """Prepares a list of the samples organized by set and label.
 
     The training loop needs a list of all the available data, organized by
@@ -303,8 +310,10 @@ class AudioProcessor(object):
     wanted_words_index = {}
     for index, wanted_word in enumerate(wanted_words):
       wanted_words_index[wanted_word] = index + 2
-    self.data_index = {'validation': [],  'training': []}
-    unknown_index = {'validation': [],  'training': []}
+    # self.data_index = {'validation': [],  'training': []}
+    # unknown_index = {'validation': [],  'training': []}
+    self.data_index = {'validation': [], 'testing': [], 'training': []}
+    unknown_index = {'validation': [], 'testing': [], 'training': []}
     all_words = {}
     # Look through all the subfolders to find audio samples
     search_path = os.path.join(self.data_dir, '*', '*.wav')
@@ -316,7 +325,8 @@ class AudioProcessor(object):
       if word == BACKGROUND_NOISE_DIR_NAME:
         continue
       all_words[word] = True
-      set_index = which_set(wav_path, validation_percentage)
+      # set_index = which_set(wav_path, validation_percentage)
+      set_index = which_set(wav_path, validation_percentage, testing_percentage)
       # If it's a known class, store its detail, otherwise add it to the list
       # we'll use to train the unknown label.
       if word in wanted_words_index:
@@ -333,7 +343,8 @@ class AudioProcessor(object):
     # We need an arbitrary file to load as the input for the silence samples.
     # It's multiplied by zero later, so the content doesn't matter.
     silence_wav_path = self.data_index['training'][0]['file']
-    for set_index in ['validation', 'training']:
+    # for set_index in ['validation', 'training']:
+    for set_index in ['validation', 'testing', 'training']:
       set_size = len(self.data_index[set_index])
       silence_size = int(math.ceil(set_size * silence_percentage / 100))
       for _ in range(silence_size):
@@ -346,7 +357,8 @@ class AudioProcessor(object):
       unknown_size = int(math.ceil(set_size * unknown_percentage / 100))
       self.data_index[set_index].extend(unknown_index[set_index][:unknown_size])
     # Make sure the ordering is random.
-    for set_index in ['validation', 'training']:
+    # for set_index in ['validation', 'training']:
+    for set_index in ['validation', 'testing', 'training']:
       random.shuffle(self.data_index[set_index])
     # Prepare the rest of the result data structure.
     self.words_list = prepare_words_list(wanted_words)

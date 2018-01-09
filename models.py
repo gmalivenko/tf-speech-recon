@@ -142,8 +142,9 @@ class Graph(object):
         control_dependencies = []
         # checks = tf.add_check_numerics_ops()
         # control_dependencies = [checks]
-
         # Create the back propagation and training evaluation machinery in the graph.
+        self.net_output = net_output
+        self.probabilities = tf.nn.softmax(net_output)
         if self.is_adversarial():
             with tf.name_scope('target_cross_entropy'):
                 self.cross_entropy_mean = tf.reduce_mean(
@@ -1374,9 +1375,9 @@ class Graph(object):
         final_fc_weights = tf.Variable(
           tf.truncated_normal([tf.cast(fc_input.get_shape()[1], tf.int32), label_count], stddev=0.01))
         final_fc_bias = tf.Variable(tf.zeros([label_count]))
-        final_fc = tf.matmul(fc_input, final_fc_weights) + final_fc_bias
+        self.final_fc = tf.matmul(fc_input, final_fc_weights) + final_fc_bias
 
-        return final_fc
+        return self.final_fc
 
     def create_residual_conv1d(self):
       fingerprint_3d = tf.reshape(self.fingerprint_input, [-1, self.fingerprint_size, 1])  # [batch, in_width, in_channels]
@@ -1401,8 +1402,6 @@ class Graph(object):
         final_fc = tf.matmul(fc_input, final_fc_weights) + final_fc_bias
 
         return final_fc
-
-
 
     def create_ds_cnn_model(self):
       """Builds a model with depthwise separable convolutional neural network

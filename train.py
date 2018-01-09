@@ -175,10 +175,10 @@ def main(_):
         batch_size, 0, model_settings, model_settings['background_frequency'],
         model_settings['background_volume'], time_shift_samples, 'training', sess, features=model_settings['features'])
     # Run the graph with this batch of training data.
-    train_summary, train_accuracy, cross_entropy_value, _, _ = sess.run(
+    train_summary, train_accuracy, cross_entropy_value, _, _, outputs, probs = sess.run(
         [
             merged_summaries, graph.evaluation_step, graph.cross_entropy_mean, graph.train_step,
-            increment_global_step
+            increment_global_step, graph.net_output, graph.probabilities
         ],
         feed_dict={
             graph.fingerprint_input: train_fingerprints,
@@ -191,6 +191,9 @@ def main(_):
     tf.logging.info('Main Step #%d: rate %f, accuracy %.1f%%, cross entropy %f' %
                     (training_step, learning_rate_value, train_accuracy * 100,
                      cross_entropy_value))
+    np.set_printoptions(threshold=np.nan)
+    if training_step > 4000:
+      print(probs)
 
     if graph.is_adversarial():
         adv_train_accuracy, adv_cross_entropy_value, _ = sess.run(
