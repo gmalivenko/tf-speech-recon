@@ -120,6 +120,8 @@ class Graph(object):
         return self.create_causal_wave_net()
       elif self.model_architecture == 'light_wave_net':
         return self.create_light_wave_net()
+      elif self.model_architecture == 'adv_wave_net':
+        return self.create_adversarial_wave_net()
       elif self.model_architecture == 'low_latency_conv':
         return self.create_low_latency_conv_model()
       elif self.model_architecture == 'low_latency_svdf':
@@ -151,7 +153,7 @@ class Graph(object):
             with tf.name_scope('target_train'), tf.control_dependencies(control_dependencies):
                 self.learning_rate_input = tf.placeholder(
                     tf.float32, [], name='learning_rate_input')
-                self.optimizer = tf.train.GradientDescentOptimizer(
+                self.optimizer = tf.train.AdamOptimizer(
                     self.learning_rate_input)
 
                 self.grads_and_vars = self.optimizer.compute_gradients(self.cross_entropy_mean)
@@ -173,7 +175,7 @@ class Graph(object):
             with tf.name_scope('adv_train'):
                 self.adv_learning_rate_input = tf.placeholder(
                     tf.float32, [], name='adv_learning_rate_input')
-                self.adv_optimizer = tf.train.GradientDescentOptimizer(
+                self.adv_optimizer = tf.train.AdamOptimizer(
                     self.adv_learning_rate_input)
                 self.adv_train_step = self.adv_optimizer.minimize(self.adv_cross_entropy_mean)
 
@@ -1188,62 +1190,76 @@ class Graph(object):
 
       return final_fc
 
-    def create_wave_net(self):
+    def create_adversarial_wave_net(self):
 
       num_of_filters = int(self.model_settings['num_of_filters'])
       default_init = tf.contrib.layers.xavier_initializer()
       num_blocks = int(self.model_settings['number_of_wave_net_blocks'])
       filter_size = int(self.model_settings['filter_size'])
+      dilation_rates = list(map(int, self.model_settings['dilation_rates'].split(',')))
       fingerprint_3d = tf.expand_dims(self.fingerprint_input, -1)
 
       def res_block(input, filter_length, num_of_filters, rate, block):
         with tf.variable_scope(name_or_scope='block_%d_%d' % (block, rate)):
           kernel_shape = [filter_length, num_of_filters, num_of_filters]
           filter_weights = tf.get_variable('w_filter', kernel_shape, tf.float32, initializer=default_init)
-          gate_weights = tf.get_variable('w_gate', kernel_shape, tf.float32, initializer=default_init)
           filter = tf.nn.convolution(input, filter_weights, 'SAME', dilation_rate=[rate])
-          gate = tf.nn.convolution(input, gate_weights, 'SAME', dilation_rate=[rate])
           filter_out = tf.nn.tanh(filter)
-          # filter_bn = tf.layers.batch_normalization(filter_out, training=self.is_training)
-          filter_bn = slim.batch_norm(filter_out,is_training=self.is_training,decay=0.96,updates_collections=None)
-          gate_out = tf.nn.relu(gate)
-          # gate_bn = tf.layers.batch_normalization(gate_out, training=self.is_training)
-          gate_bn = slim.batch_norm(gate_out,is_training=self.is_training,decay=0.96,updates_collections=None)
-          out = filter_bn * gate_bn
+          filter_bn = slim.batch_norm(filter_out, is_training=self.is_training, decay=0.96, updates_collections=None)
+          out = filter_bn
 
-          outWeights = tf.get_variable('w_out', [1, num_of_filters, num_of_filters], tf.float32, initializer=default_init)
+          outWeights = tf.get_variable('w_out', [1, num_of_filters, num_of_filters], tf.float32,
+                                       initializer=default_init)
           out = tf.nn.convolution(out, outWeights, 'SAME')
           out = tf.tanh(out)
-          # out_bn = tf.layers.batch_normalization(out, training=self.is_training)
-          out_bn = slim.batch_norm(out,is_training=self.is_training,decay=0.96,updates_collections=None)
+          out_bn = slim.batch_norm(out, is_training=self.is_training, decay=0.96, updates_collections=None)
           res = out_bn + input
 
         return res, out
 
       with tf.variable_scope('input_conv'):
-        input_weights = tf.get_variable('w_inp', [1, 1, num_of_filters], tf.float32, initializer=default_init)
-        res = tf.tanh(tf.nn.convolution(fingerprint_3d, input_weights, 'SAME'))
-        # res = tf.layers.batch_normalization(res, training=self.is_training)
-        res = slim.batch_norm(res,is_training=self.is_training,decay=0.96,updates_collections=None)
+        input_weights = tf.get_variable('w_inp', [filter_size, 1, num_of_filters], tf.float32, initializer=default_init)
+        res = tf.tanh(tf.nn.convolution(fingerprint_3d, input_weights, 'SAME', dilation_rate=[1]))
+        res = slim.batch_norm(res, is_training=self.is_training, decay=0.96, updates_collections=None)
       skip = 0
       for i in range(num_blocks):
-        for r in [1, 2, 4, 8, 16]:
+        for r in dilation_rates:
           res, s = res_block(res, filter_size, num_of_filters, r, i)
           skip += s
       with tf.variable_scope('pre_pooling_conv'):
-        skip_sum_weights = tf.get_variable('w_pre_pooling', [1, num_of_filters, num_of_filters], tf.float32, initializer=default_init)
+        skip_sum_weights = tf.get_variable('w_pre_pooling', [1, num_of_filters, num_of_filters], tf.float32,
+                                           initializer=default_init)
         pre_pooling_conv = tf.tanh(tf.nn.convolution(skip, skip_sum_weights, 'SAME'))
         # pre_pooling_conv_bn = tf.layers.batch_normalization(pre_pooling_conv, training=self.is_training)
-        pre_pooling_conv_bn = slim.batch_norm(pre_pooling_conv,is_training=self.is_training,decay=0.96,updates_collections=None)
+        pre_pooling_conv_bn = slim.batch_norm(pre_pooling_conv, is_training=self.is_training, decay=0.96,
+                                              updates_collections=None)
       global_pool = tf.reduce_mean(pre_pooling_conv_bn, axis=1)
 
       label_count = self.model_settings['label_count']
       with tf.variable_scope('final_layer'):
-        final_fc_weights = tf.get_variable('w_softmax', [num_of_filters, label_count], tf.float32, initializer=default_init)
+        final_fc_weights = tf.get_variable('w_softmax', [num_of_filters, label_count], tf.float32,
+                                           initializer=default_init)
         final_fc_bias = tf.get_variable('b_softmax', [label_count], tf.float32, initializer=tf.constant_initializer(0))
         final_fc = tf.matmul(global_pool, final_fc_weights) + final_fc_bias
 
-      return final_fc
+
+
+      with tf.variable_scope('adversarial'):
+        # gradient reversal layer
+        # https://stackoverflow.com/questions/36456436/how-can-i-define-only-the-gradient-for-a-tensorflow-subgraph
+        # Suppose you want group of ops that behave as f(x) in forward mode, but as g(x) in the backward mode.
+        # t = g(x)
+        # y = t + tf.stop_gradient(f(x) - t)
+        adv_lamda = 0.1
+        grl_back = -adv_lamda * global_pool
+        grl_forward = grl_back + tf.stop_gradient(global_pool - grl_back)
+
+        adv_weights = tf.get_variable('w_adv', [num_of_filters, self.noise_label_count], tf.float32, initializer=default_init)
+        adv_bias = tf.get_variable('b_adv', [self.noise_label_count], tf.float32, initializer=tf.constant_initializer(0))
+        adv_output = tf.matmul(global_pool, adv_weights) + adv_bias
+
+
+      return final_fc, adv_output
 
 
 
