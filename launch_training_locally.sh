@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-TF_PY="/home/vitaly/new_tf/bin/python3"
+TF_PY="/home/anya/tensorflow/bin/python3"
 
-TRAIN_DATA_DIR="/home/vitaly/PycharmProjects/tf-speech-recon/data/train/audio/"
-TEST_DATA_DIR="/home/vitaly/PycharmProjects/tf-speech-recon/data/test/audio/"
-CHECKPOINT_PATH=""
+TRAIN_DATA_DIR="/home/anya/tf-speech-recon/train/audio/"
+TEST_DATA_DIR="/home/anya/tf-speech-recon/test/audio/"
+CHECKPOINT_PATH="/home/anya/tf-speech-recon/check_points/"
 
-CHECKPOINT="/home/vitaly/competition/graph/lace_32/lace.ckpt-18000"
+CHECKPOINT=""
 
-MODEL_CONFIG="model_configs/lace_config"
+MODEL_CONFIG="model_configs/conv1d.config"
 
 $TF_PY train.py --data_dir=$TRAIN_DATA_DIR --start_checkpoint=$CHECKPOINT --checkpoint_dir=$CHECKPOINT_PATH --arch_config_file=$MODEL_CONFIG
