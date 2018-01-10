@@ -143,7 +143,7 @@ class Graph(object):
         # checks = tf.add_check_numerics_ops()
         # control_dependencies = [checks]
         # Create the back propagation and training evaluation machinery in the graph.
-        self.net_output = net_output
+        self.final_fc = net_output
         self.probabilities = tf.nn.softmax(net_output)
         if self.is_adversarial():
             with tf.name_scope('target_cross_entropy'):

@@ -1,4 +1,4 @@
-# Wave-net branch of the tf-speech-recon framework
+# Openmax classifications
 
 The architectures, that we tried their leaderboard scores are presented in the table below. Scores are presented in decreasing order:
 

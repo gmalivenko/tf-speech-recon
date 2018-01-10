@@ -100,60 +100,19 @@ def main(_):
   # Start a new TensorFlow session.
   sess = tf.InteractiveSession()
 
-  # Begin by making sure we have the training data we need. If you already have
-  # training data of your own, use `--data_url= ` on the command line to avoid
-  # downloading.
-
   model_settings = prepare_model_settings(FLAGS.arch_config_file)
   audio_processor = AudioProcessor(FLAGS.data_url, FLAGS.data_dir, model_settings)
   model_settings['noise_label_count'] = audio_processor.background_label_count() + 1
 
   graph = Graph(model_settings)
-
-  time_shift_samples = int((model_settings['time_shift_ms'] * model_settings['sample_rate']) / 1000)
-  # Figure out the learning rates for each training phase. Since it's often
-  # effective to have high learning rates at the start of training, followed by
-  # lower levels towards the end, the number of steps and learning rates can be
-  # specified as comma-separated lists to define the rate at each stage. For
-  # example --how_many_training_steps=10000,3000 --learning_rate=0.001,0.0001
-  # will run 13,000 training loops in total, with a rate of 0.001 for the first
-  # 10,000, and 0.0001 for the final 3,000.
-  training_steps_list = model_settings['how_many_training_steps']
-  learning_rates_list = model_settings['learning_rate']
-  if len(training_steps_list) != len(learning_rates_list):
-    raise Exception(
-        '--how_many_training_steps and --learning_rate must be equal length '
-        'lists, but are %d and %d long instead' % (len(training_steps_list),
-                                                   len(learning_rates_list)))
-
   tf.summary.scalar('accuracy', graph.evaluation_step)
 
   global_step = tf.contrib.framework.get_or_create_global_step()
-  increment_global_step = tf.assign(global_step, global_step + 1)
-
-  saver = tf.train.Saver()
-
-  # Merge all the summaries and write them out to /tmp/retrain_logs (by default)
-  merged_summaries = tf.summary.merge_all()
-  train_writer = tf.summary.FileWriter(FLAGS.summaries_dir + '/train',
-                                       sess.graph)
-  validation_writer = tf.summary.FileWriter(FLAGS.summaries_dir + '/validation')
-  #
-  # print('Checkpoi', os.path.join(FLAGS.checkpoint_dir, graph.get_arch_name() + '.ckpt')
-
   tf.global_variables_initializer().run()
-
-  start_step = 1
 
   if FLAGS.start_checkpoint:
     graph.load_variables_from_checkpoint(sess, FLAGS.start_checkpoint)
     start_step = global_step.eval(session=sess)
-
-  tf.logging.info('Training from step: %d ', start_step)
-
-  # # Save graph.pbtxt.
-  # tf.train.write_graph(sess.graph_def, FLAGS.checkpoint_dir,
-  #                      graph.get_arch_name() + '.pbtxt')
 
   # Save list of words.
   with gfile.GFile(
@@ -163,98 +122,7 @@ def main(_):
 
   batch_size = int(model_settings['batch_size'])
 
-  # Training loop.
-  training_steps_max = np.sum(training_steps_list)
-  for training_step in xrange(start_step, training_steps_max + 1):
-    # Figure out what the current learning rate is.
-    training_steps_sum = 0
-    for i in range(len(training_steps_list)):
-      training_steps_sum += training_steps_list[i]
-      if training_step <= training_steps_sum:
-        learning_rate_value = learning_rates_list[i]
-        break
-    # Pull the audio samples we'll use for training.
-    train_fingerprints, train_ground_truth, train_noise_labels = audio_processor.get_data(
-        batch_size, 0, model_settings, model_settings['background_frequency'],
-        model_settings['background_volume'], time_shift_samples, 'training', sess, features=model_settings['features'])
-    # Run the graph with this batch of training data.
-    train_summary, train_accuracy, cross_entropy_value, _, _, final_fc, probs = sess.run(
-        [
-            merged_summaries, graph.evaluation_step, graph.cross_entropy_mean, graph.train_step,
-            increment_global_step, graph.final_fc, graph.probabilities
-        ],
-        feed_dict={
-            graph.fingerprint_input: train_fingerprints,
-            graph.ground_truth_input: train_ground_truth,
-            graph.learning_rate_input: learning_rate_value,
-            graph.is_training: 1,
-            graph.dropout_prob: 0.5
-        })
-
-    tf.logging.info('Main Step #%d: rate %f, accuracy %.1f%%, cross entropy %f' %
-                    (training_step, learning_rate_value, train_accuracy * 100,
-                     cross_entropy_value))
-    np.set_printoptions(threshold=np.nan)
-
-    if graph.is_adversarial():
-        adv_train_accuracy, adv_cross_entropy_value, _ = sess.run(
-            [
-                graph.adv_evaluation_step, graph.adv_cross_entropy_mean, graph.adv_train_step
-            ],
-            feed_dict={
-                graph.fingerprint_input: train_fingerprints,
-                graph.noise_labels: train_noise_labels,
-                graph.adv_learning_rate_input: learning_rate_value,
-                graph.is_training: 1,
-                graph.dropout_prob: 0.5
-            })
-        tf.logging.info('Adversarial Step #%d: rate %f, accuracy %.1f%%, cross entropy %f' %
-                    (training_step, learning_rate_value, adv_train_accuracy * 100,
-                     adv_cross_entropy_value))
-
-    train_writer.add_summary(train_summary, training_step)
-
-    is_last_step = (training_step == training_steps_max)
-    if (training_step % model_settings['eval_step_interval']) == 0 or is_last_step:
-      set_size = audio_processor.set_size('validation')
-      total_accuracy = 0
-      total_conf_matrix = None
-      for i in xrange(0, set_size, batch_size):
-        validation_fingerprints, validation_ground_truth, noise_labels = (
-            audio_processor.get_data(batch_size, i, model_settings, 0.0,
-                                     0.0, 0, 'validation', sess, features=model_settings['features']))
-        # Run a validation step and capture training summaries for TensorBoard
-        # with the `merged` op.
-        validation_summary, validation_accuracy, conf_matrix = sess.run(
-            [merged_summaries, graph.evaluation_step, graph.confusion_matrix],
-            feed_dict={
-                graph.fingerprint_input: validation_fingerprints,
-                graph.ground_truth_input: validation_ground_truth,
-                graph.is_training: 0,
-                graph.dropout_prob: 1.0
-            })
-        validation_writer.add_summary(validation_summary, training_step)
-        bs = min(batch_size, set_size - i)
-        total_accuracy += (validation_accuracy * bs) / set_size
-        if total_conf_matrix is None:
-          total_conf_matrix = conf_matrix
-        else:
-          total_conf_matrix += conf_matrix
-      tf.logging.info('Confusion Matrix:\n %s' % (total_conf_matrix))
-      tf.logging.info('Step %d: Validation accuracy = %.1f%% (N=%d)' %
-                      (training_step, total_accuracy * 100, set_size))
-
-    # Save the model checkpoint periodically.
-    if (training_step % model_settings['save_step_interval'] == 0 or
-        training_step == training_steps_max):
-      checkpoint_path = os.path.join(FLAGS.checkpoint_dir,
-                                     graph.get_arch_name() + '.ckpt')
-      tf.logging.info('Saving to "%s-%d"', checkpoint_path, training_step)
-      saver.save(sess, checkpoint_path, global_step=training_step)
-
-  vrs = tf.get_collection(tf.GraphKeys.GLOBAL_VARIABLES, scope='weighted_sum')
-
-  # Testing
+  # write network outputs for test data into file
   set_size = audio_processor.set_size('testing')
   tf.logging.info('set_size=%d', set_size)
   total_accuracy = 0
@@ -272,6 +140,19 @@ def main(_):
             graph.is_training: 0,
             graph.dropout_prob: 1.0
         })
+    if not os.path.exists('features'):
+      os.makedirs('features')
+    path_to_labels = model_settings['path_to_labels']
+    labels = load_labels(path_to_labels)
+    for id_x, value in enumerate(truth):
+      with open('features/%s.features' % os.path.basename(wav_files[id_x]['file']), 'w') as feature_file:
+        feature_file.write('audio_sample_name ' + wav_files[id_x]['file'] + '\n')
+        feature_file.write('fc ' + " ".join(str(x) for x in final_fc[id_x]) + '\n')
+        feature_file.write('probs ' + " ".join(str(x) for x in probs[id_x]) + '\n')
+        feature_file.write('predicted_label ' + str(labels[predictions[id_x]]) + '\n')
+        feature_file.write('true_label ' + wav_files[id_x]['label'])
+      feature_file.close()
+
 
     bs = min(batch_size, set_size - i)
     total_accuracy += (test_accuracy * bs) / set_size
