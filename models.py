@@ -116,12 +116,10 @@ class Graph(object):
         return self.create_mobile_cnn()
       elif self.model_architecture == 'wave_net':
         return self.create_wave_net()
-      elif self.model_architecture == 'causal_wave_net':
-        return self.create_causal_wave_net()
-      elif self.model_architecture == 'light_wave_net':
-        return self.create_light_wave_net()
       elif self.model_architecture == 'adv_wave_net':
         return self.create_adversarial_wave_net()
+      elif self.model_architecture == 'mfcc_wave_net':
+        return self.create_mfcc_wave_net()
       elif self.model_architecture == 'low_latency_conv':
         return self.create_low_latency_conv_model()
       elif self.model_architecture == 'low_latency_svdf':
@@ -1263,7 +1261,7 @@ class Graph(object):
 
 
 
-    def create_light_wave_net(self):
+    def create_wave_net(self):
 
       num_of_filters = int(self.model_settings['num_of_filters'])
       default_init = tf.contrib.layers.xavier_initializer()
@@ -1313,64 +1311,58 @@ class Graph(object):
 
       return final_fc
 
-    def create_causal_wave_net(self):
+
+
+    def create_mfcc_wave_net(self):
 
       num_of_filters = int(self.model_settings['num_of_filters'])
       default_init = tf.contrib.layers.xavier_initializer()
       num_blocks = int(self.model_settings['number_of_wave_net_blocks'])
       filter_size = int(self.model_settings['filter_size'])
-      fingerprint_3d = tf.expand_dims(self.fingerprint_input, -1)
+      dilation_rates = list(map(int, self.model_settings['dilation_rates'].split(',')))
+      fingerprint3d = tf.squeeze(self.fingerprint_4d, 3)
 
       def res_block(input, filter_length, num_of_filters, rate, block):
         with tf.variable_scope(name_or_scope='block_%d_%d' % (block, rate)):
           kernel_shape = [filter_length, num_of_filters, num_of_filters]
           filter_weights = tf.get_variable('w_filter', kernel_shape, tf.float32, initializer=default_init)
-          gate_weights = tf.get_variable('w_gate', kernel_shape, tf.float32, initializer=default_init)
           filter = tf.nn.convolution(input, filter_weights, 'SAME', dilation_rate=[rate])
-          gate = tf.nn.convolution(input, gate_weights, 'SAME', dilation_rate=[rate])
           filter_out = tf.nn.tanh(filter)
-          # filter_bn = tf.layers.batch_normalization(filter_out, training=self.is_training)
           filter_bn = slim.batch_norm(filter_out,is_training=self.is_training,decay=0.96,updates_collections=None)
-          gate_out = tf.nn.relu(gate)
-          # gate_bn = tf.layers.batch_normalization(gate_out, training=self.is_training)
-          gate_bn = slim.batch_norm(gate_out,is_training=self.is_training,decay=0.96,updates_collections=None)
-          out = filter_bn * gate_bn
+          out = filter_bn
 
           outWeights = tf.get_variable('w_out', [1, num_of_filters, num_of_filters], tf.float32, initializer=default_init)
           out = tf.nn.convolution(out, outWeights, 'SAME')
           out = tf.tanh(out)
-          # out_bn = tf.layers.batch_normalization(out, training=self.is_training)
           out_bn = slim.batch_norm(out,is_training=self.is_training,decay=0.96,updates_collections=None)
           res = out_bn + input
 
         return res, out
 
       with tf.variable_scope('input_conv'):
-        input_weights = tf.get_variable('w_inp', [1, 1, num_of_filters], tf.float32, initializer=default_init)
-        res = tf.tanh(tf.nn.convolution(fingerprint_3d, input_weights, 'SAME'))
-        # res = tf.layers.batch_normalization(res, training=self.is_training)
+        input_weights = tf.get_variable('w_inp', [1, self.input_frequency_size, num_of_filters], tf.float32, initializer=default_init)
+        res = tf.tanh(tf.nn.convolution(fingerprint3d, input_weights, 'SAME'))
         res = slim.batch_norm(res,is_training=self.is_training,decay=0.96,updates_collections=None)
       skip = 0
       for i in range(num_blocks):
-        for r in [1, 2, 4, 8, 16]:
+        for r in dilation_rates:
           res, s = res_block(res, filter_size, num_of_filters, r, i)
           skip += s
-      with tf.variable_scope('output_conv'):
+      with tf.variable_scope('pre_pooling_conv'):
         skip_sum_weights = tf.get_variable('w_pre_pooling', [1, num_of_filters, num_of_filters], tf.float32, initializer=default_init)
-        out_conv = tf.tanh(tf.nn.convolution(skip, skip_sum_weights, 'SAME'))
+        pre_pooling_conv = tf.tanh(tf.nn.convolution(skip, skip_sum_weights, 'SAME'))
         # pre_pooling_conv_bn = tf.layers.batch_normalization(pre_pooling_conv, training=self.is_training)
-        out_conv_bn = slim.batch_norm(out_conv,is_training=self.is_training,decay=0.96,updates_collections=None)
-      print(out_conv_bn.get_shape())
-      take_last = out_conv_bn[:,-1,:]
+        pre_pooling_conv_bn = slim.batch_norm(pre_pooling_conv,is_training=self.is_training,decay=0.96,updates_collections=None)
+      global_pool = tf.reduce_mean(pre_pooling_conv_bn, axis=1)
 
       label_count = self.model_settings['label_count']
       with tf.variable_scope('final_layer'):
         final_fc_weights = tf.get_variable('w_softmax', [num_of_filters, label_count], tf.float32, initializer=default_init)
         final_fc_bias = tf.get_variable('b_softmax', [label_count], tf.float32, initializer=tf.constant_initializer(0))
-        final_fc = tf.matmul(take_last, final_fc_weights) + final_fc_bias
+        final_fc = tf.matmul(global_pool, final_fc_weights) + final_fc_bias
 
-      print (final_fc)
       return final_fc
+
 
 
     def create_conv1d_model(self):
