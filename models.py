@@ -37,11 +37,11 @@ class Graph(object):
         self.add_optimizer(output)
 
     def prepare_placeholders(self):
-        self.input_frequency_size = self.model_settings['dct_coefficient_count']
+        if self.model_settings['features'] == 'mfcc':
+          self.input_frequency_size = int(self.model_settings['dct_coefficient_count'])
+        else:
+          self.input_frequency_size = int(self.model_settings['fft_window_size'] + 1)
         self.input_time_size = self.model_settings['spectrogram_length']
-
-        self.input_frequency_size = int(self.model_settings['dct_coefficient_count'])
-        self.input_time_size = int(self.model_settings['spectrogram_length'])
 
         self.fingerprint_size = self.model_settings['fingerprint_size']
         self.fingerprint_input = tf.placeholder(

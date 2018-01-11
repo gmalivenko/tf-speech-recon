@@ -103,7 +103,7 @@ def prepare_model_settings(arch_conf_file):
     if features == 'raw':
         fingerprint_size = sample_rate
     elif features == 'spectrogram':
-        fingerprint_size = spectrogram_length * fft_window_size
+        fingerprint_size = spectrogram_length * (fft_window_size + 1)
     else:
         fingerprint_size = dct_coefficient_count * spectrogram_length
 
