@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # tf-speech-recon
 The architectures, that we tried their leaderboard scores are presented in the table below. Scores are presented in decreasing order:
 
@@ -22,10 +23,9 @@ Speech recognition Kaggle repo
 
 Some ideas:
 
-1. seq2seq attention
-2. feature combination (raw + STFT + MFCC)
-3. adversarial learning
-4. depth-wise convolution
-5. CTC (connectionist temporal classification)
-6. model combination
-7. manual labling for generating new testdata (~500 samples)
+1. Investigate main causes of errors on LB by looking into some random utterances and comparing their labels to the outputs of the model
+2. Incorporate more data augmentation like stretching, etc.
+3. Adapt adversarial training to this model
+4. Substitute normal convolutions with depthwise separable convolutions for efficiency
+5. Try to lighten the model by decreasing number of channels and dilated blocks
+
