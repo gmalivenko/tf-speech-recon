@@ -16,6 +16,8 @@ import submission_processor
 from models import *
 from tensorflow.python.platform import gfile
 
+import test_ckpt
+
 FLAGS = None
 
 
@@ -48,10 +50,13 @@ def main(_):
   for i in xrange(0, sample_num, int(model_settings['batch_size'])):
     tf.logging.info('Progress: %.2f%%', float(100 * i)/float(sample_num))
     print(i)
-    test_fingerprints = audio_processor.get_test_data(int(model_settings['batch_size']), i, model_settings, sess, features=model_settings['features'])
-    batch_indices = sess.run(graph.predicted_indices, feed_dict={graph.fingerprint_input: test_fingerprints,
-                                                                   graph.is_training: False})
+    test_fingerprints, test_files = audio_processor.get_test_data(int(model_settings['batch_size']), i, model_settings, sess, features=model_settings['features'])
+    batch_indices, final_fc, probs = sess.run([graph.predicted_indices, graph.final_fc, graph.probabilities],
+                                              feed_dict={graph.fingerprint_input: test_fingerprints,
+                                                         graph.is_training: False})
     indices.extend(batch_indices)
+    print(test_files)
+    test_ckpt.write_outputs_to_file(batch_indices, final_fc, probs, test_files, model_settings)
   human_string = []
   for i in indices:
     human_string.append(labels[i])

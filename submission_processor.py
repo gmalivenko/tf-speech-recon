@@ -63,13 +63,11 @@ class SubmissionProcessor(object):
       spectrogram,
       wav_decoder.sample_rate,
       dct_coefficient_count=model_settings['dct_coefficient_count'])
-    # for i in range(offset, offset + sample_count):
-    # print('filenames: ', candidates[offset:offset + sample_count])
-    # print(sample_count)
 
-
+    wav_files = []
     for i in range(offset, offset + sample_count):
         input_dict = {wav_filename_placeholder : candidates[i]}
+        wav_files.append(candidates[i])
         if features == "spectrogram":
           data[i - offset, :] = sess.run(spectrogram, feed_dict=input_dict).flatten()
         elif features == "raw":
@@ -77,4 +75,4 @@ class SubmissionProcessor(object):
         else:
           data[i - offset, :] = sess.run(mfcc, feed_dict=input_dict).flatten()
 
-    return data
+    return data, wav_files

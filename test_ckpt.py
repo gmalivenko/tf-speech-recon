@@ -87,11 +87,44 @@ from input_data import *
 from models import *
 from tensorflow.python.platform import gfile
 
+from input_data import *
+import submission_processor
+from models import *
+
 FLAGS = None
 
 def load_labels(filename):
   """Read in labels, one label per line."""
   return [line.rstrip() for line in tf.gfile.GFile(filename)]
+
+def write_outputs_to_file(predictions, final_fc, probs, wav_files, model_settings, truth=None):
+  if truth is not None:
+    if not os.path.exists('correctly_predicted_out'):
+      os.makedirs('correctly_predicted_out')
+    if not os.path.exists('errors_out'):
+      os.makedirs('errors_out')
+  else:
+    if not os.path.exists('features'):
+      os.makedirs('features')
+  path_to_labels = model_settings['path_to_labels']
+  labels = load_labels(path_to_labels)
+  for id_x, value in enumerate(predictions):
+    if truth is None:
+      target_folder = 'features'
+    else:
+      if (predictions[id_x] == truth[id_x]) or ((predictions[id_x] == 1) and (labels[truth[id_x]] not in labels)):
+        target_folder = 'correctly_predicted_out'
+      else:
+        target_folder = 'errors_out'
+    with open('%s/%s.features' % (target_folder, os.path.basename(wav_files[id_x])), 'w') as feature_file:
+      feature_file.write('audio_sample_name ' + wav_files[id_x] + '\n')
+      feature_file.write('fc ' + " ".join(str(x) for x in final_fc[id_x]) + '\n')
+      feature_file.write('probs ' + " ".join(str(x) for x in probs[id_x]) + '\n')
+      feature_file.write('predicted_label ' + str(labels[predictions[id_x]]) + '\n')
+      if truth is not None:
+        feature_file.write('true_label ' + wav_files[id_x]['label'] + '\n')
+      feature_file.write('labels : ' + " ".join(x for x in labels))
+    feature_file.close()
 
 def main(_):
   # We want to see all the logging messages for this tutorial.
@@ -140,19 +173,10 @@ def main(_):
             graph.is_training: 0,
             graph.dropout_prob: 1.0
         })
-    if not os.path.exists('features'):
-      os.makedirs('features')
-    path_to_labels = model_settings['path_to_labels']
-    labels = load_labels(path_to_labels)
-    for id_x, value in enumerate(truth):
-      with open('features/%s.features' % os.path.basename(wav_files[id_x]['file']), 'w') as feature_file:
-        feature_file.write('audio_sample_name ' + wav_files[id_x]['file'] + '\n')
-        feature_file.write('fc ' + " ".join(str(x) for x in final_fc[id_x]) + '\n')
-        feature_file.write('probs ' + " ".join(str(x) for x in probs[id_x]) + '\n')
-        feature_file.write('predicted_label ' + str(labels[predictions[id_x]]) + '\n')
-        feature_file.write('true_label ' + wav_files[id_x]['label'])
-      feature_file.close()
-
+    wav_paths = []
+    for file_dict in wav_files:
+      wav_paths.append(file_dict['file'])
+    write_outputs_to_file(predictions, final_fc, probs, wav_paths, model_settings, truth)
 
     bs = min(batch_size, set_size - i)
     total_accuracy += (test_accuracy * bs) / set_size
@@ -162,6 +186,7 @@ def main(_):
       total_conf_matrix += conf_matrix
   tf.logging.info('Confusion Matrix:\n %s' % (total_conf_matrix))
   tf.logging.info('Final test accuracy = %.1f%% (N=%d)' % (total_accuracy * 100, set_size))
+
 
   # Evaluation metric
   true_positives = np.diag(total_conf_matrix)
@@ -175,6 +200,7 @@ def main(_):
   labels = load_labels(path_to_labels)
   stat_df = pd.DataFrame(final_statistics, index=labels, columns=['precision', 'recall', 'F1_score'])
   stat_df.to_csv(model_settings['arch'] + '_metric.csv', index=True, header=True, sep='\t')
+
 
 
 if __name__ == '__main__':
