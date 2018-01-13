@@ -72,8 +72,6 @@ from __future__ import print_function
 
 import argparse
 import os.path
-from scipy.io import loadmat
-import scipy as sp
 import os
 
 import numpy as np
