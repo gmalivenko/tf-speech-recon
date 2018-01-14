@@ -55,7 +55,7 @@ def main(_):
                                               feed_dict={graph.fingerprint_input: test_fingerprints,
                                                          graph.is_training: False})
     # Map not confident decisions to unknowns
-    for i in enumerate(batch_indices):
+    for i in range(int(model_settings['batch_size'])):
       if np.max(probs[i,:]) < 0.98:
         batch_indices[i] = 1
 
