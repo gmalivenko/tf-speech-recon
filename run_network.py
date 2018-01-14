@@ -54,6 +54,11 @@ def main(_):
     batch_indices, final_fc, probs = sess.run([graph.predicted_indices, graph.final_fc, graph.probabilities],
                                               feed_dict={graph.fingerprint_input: test_fingerprints,
                                                          graph.is_training: False})
+    # Map not confident decisions to unknowns
+    for i in enumerate(batch_indices):
+      if np.max(probs[:,i]) < 0.98:
+        batch_indices[i] = 1
+
     indices.extend(batch_indices)
     print(test_files)
     test_ckpt.write_outputs_to_file(batch_indices, final_fc, probs, test_files, model_settings)
