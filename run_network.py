@@ -56,7 +56,7 @@ def main(_):
                                                          graph.is_training: False})
     # Map not confident decisions to unknowns
     for i in enumerate(batch_indices):
-      if np.max(probs[:,i]) < 0.98:
+      if np.max(probs[i,:]) < 0.98:
         batch_indices[i] = 1
 
     indices.extend(batch_indices)
