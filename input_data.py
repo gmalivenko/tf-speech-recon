@@ -506,6 +506,7 @@ class AudioProcessor(object):
       one-hot form.
     """
     # Pick one of the partitions to choose samples from.
+    wav_files = []
     candidates = self.data_index[mode]
     if how_many == -1:
       sample_count = len(candidates)
@@ -528,6 +529,7 @@ class AudioProcessor(object):
       else:
         sample_index = np.random.randint(len(candidates))
       sample = candidates[sample_index]
+      wav_files.append(sample)
       # If we're time shifting, set up the offset for this sample.
       if time_shift > 0:
         time_shift_amount = np.random.randint(-time_shift, time_shift)
@@ -579,7 +581,7 @@ class AudioProcessor(object):
       label_index = self.word_to_index[sample['label']]
       labels[i - offset, label_index] = 1
       # print(sample)
-    return data, labels, noise_labels
+    return data, labels, noise_labels, wav_files
 
 
   def get_test_data(self, how_many, offset, model_settings, background_frequency,

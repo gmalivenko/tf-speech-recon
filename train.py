@@ -169,7 +169,7 @@ def main(_):
         learning_rate_value = learning_rates_list[i]
         break
     # Pull the audio samples we'll use for training.
-    train_fingerprints, train_ground_truth, train_noise_labels = audio_processor.get_data(
+    train_fingerprints, train_ground_truth, train_noise_labels, _ = audio_processor.get_data(
         batch_size, 0, model_settings, model_settings['background_frequency'],
         model_settings['background_volume'], time_shift_samples, 'training', sess, features=model_settings['features'])
     # Run the graph with this batch of training data.
@@ -214,7 +214,7 @@ def main(_):
       total_accuracy = 0
       total_conf_matrix = None
       for i in xrange(0, set_size, batch_size):
-        validation_fingerprints, validation_ground_truth, noise_labels = (
+        validation_fingerprints, validation_ground_truth, noise_labels, _ = (
             audio_processor.get_data(batch_size, i, model_settings, 0.0,
                                      0.0, 0, 'validation', sess, features=model_settings['features']))
         # Run a validation step and capture training summaries for TensorBoard

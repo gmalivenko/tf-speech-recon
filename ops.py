@@ -132,8 +132,8 @@ def depthwise_separable_conv(input_, output_size, is_training, kernel=(3, 3), st
 
     return out, filter_dw, filter_pw
 
-def conv_pooling_block(input, filter_width, stride, num_filters, num_stacked_conv, is_training, dropout_prob, scope,
-                           pooling_type='max', pooling_size=4):
+def stacked_conv_pooling(input, filter_width, stride, num_filters, num_stacked_conv, is_training, dropout_prob, scope,
+                         pooling_type='max', pooling_size=4):
   with tf.variable_scope(scope):
     receptive_field_size_ = filter_width
     stride_ = stride
@@ -146,7 +146,7 @@ def conv_pooling_block(input, filter_width, stride, num_filters, num_stacked_con
                              'conv_relu-' + str(conv_id))
     conv_out = input_
 
-      # pooling
+    # pooling
     if pooling_type == 'avg':
       pooling_ = tf.reduce_mean(conv_out, 1)
     else:
@@ -154,28 +154,41 @@ def conv_pooling_block(input, filter_width, stride, num_filters, num_stacked_con
 
     return pooling_
 
-def conv_relu(input_, filter_width, stride_, num_filters, is_training, dropout_prob, scope):
+def conv_relu(input_, filter_width, stride_, num_filters, is_training, dropout_prob, scope, padding='SAME'):
   with tf.variable_scope(scope):
     in_channels = input_.get_shape()[2]
     weights_ = tf.get_variable('weights', [filter_width, in_channels, num_filters], tf.float32,
                                initializer=tf.contrib.layers.xavier_initializer())
     bias_ = tf.get_variable('bias', [num_filters], tf.float32, initializer=tf.constant_initializer(0))
-    conv_ = tf.nn.conv1d(input_, weights_, stride=stride_, padding='VALID') + bias_
-    relu_ = tf.nn.relu(conv_)
+    conv_ = tf.nn.conv1d(input_, weights_, stride=stride_, padding=padding) + bias_
 
     # batch normalization
-    # batch_mean, batch_var = tf.nn.moments(relu_, [0])
-    # scale = tf.Variable(tf.ones([1]))
-    # beta = tf.Variable(tf.zeros([1]))
-    # relu_ = tf.nn.batch_normalization(relu_, batch_mean, batch_var, beta, scale, 1e-3)
+    bn = slim.batch_norm(conv_, is_training=is_training, decay=0.9, updates_collections=None)
 
-    # dropout
-    if is_training is not None:
-      result = tf.nn.dropout(relu_, dropout_prob)
+    # relu
+    relu_ = tf.nn.relu(bn)
+
+    return relu_
+
+def residual_block_1d(input, filter_width, stride_, num_filters, is_training, dropout_prob, scope, pooling_type='', pooling_size=4):
+  with tf.variable_scope(scope):
+    conv_1 = conv_relu(input, filter_width, stride_, num_filters, is_training, dropout_prob, scope + '/conv_1')
+    conv_2 = conv_relu(conv_1, filter_width, stride_, num_filters, is_training, dropout_prob, scope + '/conv_2')
+    conv = tf.concat([conv_1, conv_2], axis=2)
+    if num_filters != input.get_shape()[2]:
+      conv_out = input + conv
     else:
-      result = relu_
+      conv_out = conv
 
-    return result
+    # pooling
+    if pooling_type == 'avg':
+      result = tf.reduce_mean(conv_out, 1)
+    elif pooling_type == 'max':
+      result = tf.nn.pool(conv_out, [pooling_size], strides=[4], pooling_type='MAX', padding='VALID')
+    else:
+      result = conv_out
+
+  return result
 
 
 
