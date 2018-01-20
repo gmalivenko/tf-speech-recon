@@ -12,7 +12,25 @@ Presented code was used to get into top 17% in Kaggle Speech Recognition Challen
 | crnn<sup id="2">[[2]](#2)</sup> | 0.83143 |
 | gru-rnn<sup id="2">[[2]](#2)</sup> | 0.82978 |
 
-To replicate best result modify pathes and run launch_training_locally.sh.
+To replicate best result modify pathes and run `launch_training_locally.sh`. You should have tensorflow of version 1.4 installed.
+Example:
+````bash
+#!/usr/bin/env bash
+# Path to python
+TF_PY="/home/username/tensorflow/bin/python3"
+
+TRAIN_DATA_DIR="/home/username/train_data/audio/"
+TEST_DATA_DIR="/home/username/test_data/audio/"
+CHECKPOINT_PATH="/home/username/where_to_save_checkpoints/"
+SUMMARIES_DIR=""
+
+CHECKPOINT="/home/username/where_to_save_checkpoints/model_name.ckpt-10000"
+
+MODEL_CONFIG="model_configs/best_wave_net.config"
+
+$TF_PY train.py --data_dir=$TRAIN_DATA_DIR --start_checkpoint=$CHECKPOINT --checkpoint_dir=$CHECKPOINT_PATH --arch_config_file=$MODEL_CONFIG --summaries_dir=$SUMMARIES_DIR
+
+````
 
 
 References:
