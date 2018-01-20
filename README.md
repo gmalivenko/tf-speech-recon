@@ -1,15 +1,19 @@
-<<<<<<< HEAD
-# tf-speech-recon
-The architectures, that we tried their leaderboard scores are presented in the table below. Scores are presented in decreasing order:
+# tf-speech-recognition-challenge
+This repository is based on Tensorflow Speech Commands framework (https://github.com/tensorflow/tensorflow/tree/master/tensorflow/examples/speech_commands)
 
-| Architecture | Public score |
+Presented code was used to get into top 17% in Kaggle Speech Recognition Challenge (https://www.kaggle.com/c/tensorflow-speech-recognition-challenge). Architectures that we tried and their corresponding private leaderboard scores are presented in the table below.
+
+| Architecture | Private score |
 | :----------- | -----------: |
-| wave-net<sup id="1">[[1]](#1)</sup> | 0.86         |
-| ds-cnn<sup id="2">[[2]](#2)</sup>   | 0.83         |
-| cnn on raw audio<sup id="3">[[3]](#3)</sup> | 0.83 |
-| crnn<sup id="2">[[2]](#2)</sup> | 0.83 |
-| gru-rnn<sup id="2">[[2]](#2)</sup> | 0.83 |
-| lace | 0.82 |
+| wave-net<sup id="1">[[1]](#1)</sup> | 0.87137         |
+| ds-cnn<sup id="2">[[2]](#2)</sup>   | 0.84600         |
+| cnn on raw audio<sup id="3">[[3]](#3)</sup> | 0.83895 |
+| lace<sup id="4">[[4]](#4)</sup> | 0.83319 |
+| crnn<sup id="2">[[2]](#2)</sup> | 0.83143 |
+| gru-rnn<sup id="2">[[2]](#2)</sup> | 0.82978 |
+
+To replicate best result modify pathes and run launch_training_locally.sh.
+
 
 References:
 
@@ -19,13 +23,7 @@ References:
 
 <b id="[3]">3 - </b> Dai W. et al. Very deep convolutional neural networks for raw waveforms //Acoustics, Speech and Signal Processing (ICASSP), 2017 IEEE International Conference on. – IEEE, 2017. – С. 421-425. [↩](#3)
 
-Speech recognition Kaggle repo
+<b id="[4]">4 - </b> Xiong W. et al. The Microsoft Conversational Speech Recognition System //Acoustics, Speech and Signal Processing (ICASSP), 2017 IEEE International Conference on. – IEEE, 2017. [↩](#4)
 
-Some ideas:
 
-1. Investigate main causes of errors on LB by looking into some random utterances and comparing their labels to the outputs of the model
-2. Incorporate more data augmentation like stretching, etc.
-3. Adapt adversarial training to this model
-4. Substitute normal convolutions with depthwise separable convolutions for efficiency
-5. Try to lighten the model by decreasing number of channels and dilated blocks
 

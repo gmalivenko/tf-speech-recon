@@ -23,21 +23,17 @@ class SubmissionProcessor(object):
   def prepare_data_index(self):
     self.data_index = []
     with open('./sample_submission.csv') as csvfile:
-        spamreader = csv.reader(csvfile)
-        for row in spamreader:
+        reader = csv.reader(csvfile)
+        for row in reader:
             self.data_index.append(self.data_dir + row[0])
         self.data_index = self.data_index[1:]
 
-
-    # for (dir_path, dir_names, file_names) in os.walk(self.path):
-    #     self.data_index.extend(file_names)
-    #     break
   def write_to_csv(self, human_string, target_file_name='baseline_submission'):
       with open('./' + target_file_name + '.csv', 'w') as csvfile:
-          spamwriter = csv.writer(csvfile)
-          spamwriter.writerow(['fname'] + ['label'])
+          writer = csv.writer(csvfile)
+          writer.writerow(['fname'] + ['label'])
           for i in range(len(human_string)):
-            spamwriter.writerow([self.data_index[i].rsplit('/', 1)[1]] + [human_string[i]])
+            writer.writerow([self.data_index[i].rsplit('/', 1)[1]] + [human_string[i]])
 
 
   def get_test_data(self, how_many, offset, model_settings, sess, features='mfcc'):
@@ -63,9 +59,6 @@ class SubmissionProcessor(object):
       spectrogram,
       wav_decoder.sample_rate,
       dct_coefficient_count=model_settings['dct_coefficient_count'])
-    # for i in range(offset, offset + sample_count):
-    # print('filenames: ', candidates[offset:offset + sample_count])
-    # print(sample_count)
 
 
     for i in range(offset, offset + sample_count):
