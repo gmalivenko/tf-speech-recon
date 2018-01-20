@@ -134,7 +134,7 @@ class Graph(object):
         return self.create_ds_cnn_model()
       else:
         raise Exception('model_architecture argument "' + self.model_architecture +
-                        '" not recognized, should be one of "single_fc", "conv",' +
+                        '" not recognized, should be one of "single_fc", "conv", "lace", "adversarial_lace", "lace_no_batch_norm", "mobile_cnn", "wave_net", "adv_wave_net", "mfcc_wave_net", "gated_mfcc_wave_net", "crnn", "conv1d", "ds_cnn", ' +
                         ' "low_latency_conv, or "low_latency_svdf"')
 
 

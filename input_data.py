@@ -73,7 +73,6 @@ def prepare_model_settings(arch_conf_file):
                 model_settings[k] = float(parser[section][k])
             except:
                 model_settings[k] = parser[section][k]
-
     try:
         model_settings['how_many_training_steps'] = list(map(int, model_settings['how_many_training_steps'].split(',')))
         model_settings['learning_rate'] = list(map(float, model_settings['learning_rate'].split(',')))
